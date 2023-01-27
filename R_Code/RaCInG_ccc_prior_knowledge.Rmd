@@ -1,0 +1,568 @@
+---
+title: "Extract cell-cell communication knowledge for RaCInG"
+output: html_document
+vignette: >
+  %\VignetteIndexEntry{easier User Manual}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+---
+
+<style type="text/css">
+.smaller {
+  font-size: 10px
+  font-style: normal
+}
+</style>
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup, include = FALSE}
+
+# working directory
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+# packages
+library('OmnipathR')
+library('liana')
+library('easier')
+library('dplyr')
+library('tibble')
+library('corrplot')
+library('ggplot2')
+library('reshape2')
+library('magrittr')
+library('tidyverse')
+
+# some functions
+# plot correlations including p-value, correlation value and correlation line 
+panel.cor <- function(x, y, digits=2, font.cor = 1, ...) {
+  usr <- par("usr")
+  on.exit(par(usr))
+  par(usr = c(0, 1, 0, 1))
+  r <- cor.test(x,y)$estimate
+  p <- cor.test(x,y)$p.value
+  txt_r <- format(r, digits=digits)
+  txt_p <- format(p, scientific = TRUE, digits=digits)
+  txt <- paste("cor=", txt_r, "\np=", txt_p, sep="")
+  
+  if(txt_r >= 0.7 & txt_p >= 0.05) font.cor <- 2
+  
+  text(0.5, 0.5, txt, cex = 1, font = font.cor)
+}
+
+panel.lm <- function (x, y, col = par("col"), bg = NA, pch = par("pch"), cex = 0.8, col.smooth = "#A1A1A1", ...) {
+  
+  points(x, y, pch = pch, col = col, bg = bg, cex = cex)
+  # abline(stats::lm(y ~ x),  col = col.smooth, ...)
+  abline(a=0, b=1,  col = col.smooth, ...)
+}
+
+cor.mtest <- function(mat, ...) {
+  mat <- as.matrix(mat)
+  n <- ncol(mat)
+  p.mat <- matrix(NA, n, n)
+  diag(p.mat) <- 0
+  for (i in 1:(n - 1)) {
+    for (j in (i + 1):n) {
+      tmp <- cor.test(mat[, i], mat[, j], ...)
+      p.mat[i, j] <- p.mat[j, i] <- tmp$p.value
+    }
+  }
+  colnames(p.mat) <- rownames(p.mat) <- colnames(mat)
+  p.mat
+}
+
+# Change default settings to fit plots
+knitr::opts_chunk$set(fig.height = 9, fig.width = 9)
+
+# utils
+#source("./utils/utils_lrpairs_curated.R")
+```
+
+## Knowledge extracted from literature 
+```{r table1, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+library(knitr)
+table1 <- "
+| Resource   |  Data | Reference |
+| -----------------------  | ----------------------------------- | ----------------------------------- |
+| Liana | Inter-cellular interactions | Türei et al. Molecular systems biology, 2021; Dimitrov et al. Nat Commun, 2022 |
+| Ramilowski | RNA-seq data from 144 cell types | Ramilowski et al., Nat Comm, 2015 |
+| Deconvolution computational methods | Quantification of cell type fractions | .... |
+| Cancer Cell Line Encyclopedia | Cancer cell expressed L-R interactions | Barretina et al., Nat, 2012 |
+
+"
+cat(table1)
+```
+
+## Curated cell-cell communication interactions
+
+> Retrieve LIANA's consensus resource of inter-cellullar communication network (`liana` R package version 0.1.8)
+
+- LIANA's Consensus Network includes expert-curated (in the context of CCC) interactions from “CellPhoneDB”, “CellChatDB”, “ICELLNET”, “connectomeDB2020”, and “CellTalkDB” resources.
+
+```{r}
+
+# Retrieve consensus resource, curated  (in the context of CCC) ligand-receptor interactions
+curated_omni <- liana::get_curated_omni()
+# curated_omni <- select_resource("Consensus")[[1]]
+
+# Remove interactions from ECM
+curated_omni <- curated_omni %>% 
+  filter(category_intercell_source %in% c("cell_surface_ligand", "ligand") & 
+           category_intercell_target %in% c("receptor", "adhesion"))
+
+## Decomplexify (or split all complexes into subunits)
+curated_omni <- curated_omni %>%
+  liana::decomplexify(columns = c("source_genesymbol", "target_genesymbol"))
+
+# Ligand-receptor pairs
+LRpairs_curated <- unique(paste0(curated_omni$source_genesymbol, "_", curated_omni$target_genesymbol))
+
+# Final knowledge data.frame
+intercell_knowledge <- curated_omni
+
+```
+
+- Conclusion:
+`get_curated_omni()` returns, via OmniPath, the most up-to-date version of all databases.
+`select_resource()` retrieves the network stored by the developers.
+
+## Cell type fractions quantification
+
+> Retrieve cell types that can be quantified from deconvolution of RNA-seq data
+
+- Cell types: 
+
+  + Dendritic cells (DC)
+  + CD8+ T cells (CD8+ T)
+  + Regulatory T cells (Treg)
+  + B cells (B)
+  + M1 macrophages (M1)
+  + M2 macrophages (M2)
+  + Healthy endothelial cells (Endo)
+  + Cancer-associated firoblasts (CAF)
+  + Natural Killer cells (NK)
+  + Tumor cells (Tumor)
+
+```{r, echo=FALSE}
+
+# Cell type fractions obtained for TCGA GBM dataset
+celltype_quantification <- read.csv(file = "../input_data_model1/GBM_TMEmod_cell_fractions.csv",
+                                    row.names = 1)
+
+# Cell type names
+cell_types <- colnames(celltype_quantification) 
+
+# Aggregate macrophages together (Ramilowski defined M1 and M2 together)
+celltype_quantification$M1 <- celltype_quantification$M1 + celltype_quantification$M2
+celltype_quantification$M2 <- NULL
+colnames(celltype_quantification)[5] <- "M"
+
+# Visualize the data
+boxplot.matrix(as.matrix(celltype_quantification), las = 2)
+
+```
+
+## Ramilowski CAGE expression data for human protein-coding genes in the 144 human primary cells 
+
+> Retrieve Ramilowski gene expression data
+
+- We match the quantified cell types with cell types from Ramilowski
+- Matching cell types (*double check why Maisa consider this aggregation*): 
+
+  + Dendritic cells (DC): Dendritic.Monocyte.Immature.derived, Dendritic.Plasmacytoid
+  + CD8+ T cells (CD8+ T): CD8..T.cells
+  + Regulatory T cells (Treg): CD4.CD25.CD45RA..naive.regulatory.T.cells, CD4.CD25.CD45RA..memory.regulatory.T.cells
+  + B cells (B): CD19..B.cells
+  + M1 macrophages (M1): Macrophage.Monocyte.derived
+  + M2 macrophages (M2): Macrophage.Monocyte.derived
+  + Healthy endothelial cells (Endo): Endothelial.Lymphatic, Endothelial.Microvascular
+  + Cancer-associated firoblasts (CAF): Fibroblast.Lymphatic, Fibroblast.Skin.Normal
+  + Natural Killer cells (NK): NK.cells
+  + Tumor cells (Tumor): from Cancer Cell Lines
+  
+```{r, echo = FALSE}
+
+# Read ramilowski gene expression data
+Expr_genes <- read.delim(file = "./utils/ExpressionGenes.txt", row.names = 1)
+
+# Visualize the data
+Expr_genes[1:3, 1:5]
+
+# Match cell types
+aggregated_matched_cell_types <- list("B" = "CD19..B.cells",
+                                      "M" = "Macrophage.Monocyte.derived",
+                                      "DC" = c("Dendritic.Monocyte.Immature.derived", "Dendritic.Plasmacytoid"),
+                                      "Endo" = c("Endothelial.Lymphatic", "Endothelial.Microvascular"),
+                                      "NK" =  "NK.cells",
+                                      "CD8+ T" =  "CD8..T.cells",
+                                      "Treg" = c("CD4.CD25.CD45RA..naive.regulatory.T.cells", 
+                                                 "CD4.CD25.CD45RA..memory.regulatory.T.cells"),
+                                      "CAF" = c("Fibroblast.Lymphatic", "Fibroblast.Skin.Normal"),
+                                      "Tumor" = "Tumor")
+
+# Gene expression data for only matched cell types
+Expr_genes <- Expr_genes[, colnames(Expr_genes) %in% unlist(aggregated_matched_cell_types)]
+df <- reshape2::melt(Expr_genes)
+df$gene <- rep(rownames(Expr_genes), times = 12)
+
+# Visualize summary statistics of each cell type
+apply(Expr_genes, 2, summary)
+
+# Plot gene expression values across each cell type
+ggplot(df ,aes(variable, value)) +
+  geom_boxplot(colour = "black") + 
+  theme_bw() + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + labs(y = "TPM values")
+
+```
+
+> Gene re-annotation: update of gene names
+
+- Re-annotation is often useful when cross-matching genes across different data sources (i.e. Ramilowski and CCLE)
+- We annotated gene names according to HUGO Gene Nomenclature Comittee (HGNC).
+
+```{r, echo=FALSE}
+
+# gene re-annotation using function from easier
+annotated_gene_names <- easier:::reannotate_genes(rownames(Expr_genes))
+
+# gene names to change
+to_change <- which(annotated_gene_names$old_names != annotated_gene_names$new_names)
+
+# duplicates: rows corresponding to the same HGNC symbol were averaged.
+gene_newnames <- annotated_gene_names$new_names[to_change]
+gene_names <- rownames(Expr_genes)
+
+if(anyDuplicated(gene_newnames) != 0){
+  idx <- which(duplicated(gene_newnames) == TRUE)
+  dup_genes <- gene_newnames[idx]
+  for (ii in dup_genes){
+    jj <- annotated_gene_names$old_names[annotated_gene_names$new_names %in% ii]
+    Expr_genes[which(gene_names %in% jj)[1],] <- colMeans(Expr_genes[which(gene_names %in% jj),])
+    Expr_genes <- Expr_genes[-which(gene_names %in% jj)[2],]
+    gene_names <- gene_names[-which(gene_names %in% jj)[2]]
+  }
+}
+rownames(Expr_genes) <- gene_names
+
+annotated_gene_names <- easier:::reannotate_genes(rownames(Expr_genes))
+to_change <- which(annotated_gene_names$old_names != annotated_gene_names$new_names)
+rownames(Expr_genes)[to_change] <- annotated_gene_names$new_names[to_change]
+
+# handling rare cases where annotation was not found: we do it manually
+rownames(Expr_genes)[which(rownames(Expr_genes) %in% "CYR61")] <- "CCN1" 
+rownames(Expr_genes)[which(rownames(Expr_genes) %in% "CTGF")] <- "CCN2" 
+rownames(Expr_genes)[which(rownames(Expr_genes) %in% "WISP1")] <- "CCN4" 
+
+```
+
+## Add tumor cell type using gene expression data from cancer cell lines (CCLE)
+- We considered a pan-cancer cell type derived using data from the CCLE. 
+- We selected gene expression data for all cell lines linked to 18 solid cancer types, leaving 583 cell lines. 
+- We determined the median expression of each gene over all selected cell lines, which we considered as the gene expression of the pan-cancer cell type.
+- According to Maisa's report, the 10 TPM threshold to consider a gene expressed was also applicable on the CCLE data.
+
+```{r, echo=FALSE}
+# add pan-tumor cell type from CCLE (already filtered for >= 10TPM)
+Expr_genes_tumor <- read.table("./utils/CCLE_PanCancer.txt")
+
+cat("Number of activated genes in tumor cell type: ", nrow(Expr_genes_tumor))
+
+# concatenate Ramilowski and CCLE expression data
+Expr_genes$Tumor <- 0
+
+# overlapping genes
+overlapping_genes <- intersect(Expr_genes_tumor$ApprovedSymbol, rownames(Expr_genes))
+
+# keep tumor cell gene expression matrix with overlapping genes only
+tmp <- Expr_genes_tumor[Expr_genes_tumor$ApprovedSymbol %in% overlapping_genes,]
+
+# add tumor cell expressed genes that overlap to the corresponding tumor column
+Expr_genes[match(overlapping_genes, rownames(Expr_genes)), "Tumor"] <- tmp$TPM
+
+# missing genes
+missing_genes <- setdiff(Expr_genes_tumor$ApprovedSymbol, rownames(Expr_genes))
+miss_matrix <- matrix(0, nrow = length(missing_genes), ncol= ncol(Expr_genes))
+colnames(miss_matrix) <- colnames(Expr_genes)
+rownames(miss_matrix) <- missing_genes
+
+# add tumor cell expressed genes that were missing to all columns
+Expr_genes <- rbind(Expr_genes, miss_matrix)
+tmp <- Expr_genes_tumor[Expr_genes_tumor$ApprovedSymbol %in% missing_genes,]
+Expr_genes[missing_genes, "Tumor"] <- tmp$TPM
+
+```
+
+>  Current gene expression matrix:
+
+```{r, echo=FALSE}
+cat("Number of genes = ", dim(Expr_genes)[1])
+cat("Number of cell types = ", dim(Expr_genes)[2])
+```
+
+> Keep genes expressed if  ≥10 TPM in at least one cell type
+
+```{r, echo=FALSE}
+filter_10tpm <- apply(Expr_genes, 1 , function(X) X>=10)
+
+cat("Genes ≥10 TPM: ", table(apply(filter_10tpm, 2, sum) >= 1)[2])
+cat("Genes <10 TPM: ", table(apply(filter_10tpm, 2, sum) >= 1)[1])
+
+genes_to_include <- apply(filter_10tpm, 2, sum) >= 1
+genes_to_include <- names(genes_to_include[genes_to_include])
+Expr_genes <- Expr_genes[rownames(Expr_genes) %in% genes_to_include, ]
+
+# gene expression data for only matched cell types
+Expr_genes <- Expr_genes[, colnames(Expr_genes) %in% unlist(aggregated_matched_cell_types)]
+df <- melt(Expr_genes)
+df$gene <- rep(rownames(Expr_genes), times = 13)
+
+apply(Expr_genes, 2, summary)
+
+ggplot(df ,aes(variable, value)) +
+  geom_boxplot(colour = "black") + 
+  theme_bw() + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + labs(y = "TPM values")
+
+```
+
+> Exclude those ligands and receptors that were expressed by a cell type but not paired to another ligand or receptor in the cell network.
+
+```{r}
+pairs_to_keep <- NULL
+for (ii in 1:nrow(intercell_knowledge)){
+  receptor <- intercell_knowledge[ii, "target_genesymbol"]
+  ligand <- intercell_knowledge[ii, "source_genesymbol"]
+  
+  if (all(receptor %in% rownames(Expr_genes) & ligand %in% rownames(Expr_genes))){
+    pairs_to_keep <- c(pairs_to_keep, ii)
+  }else {
+    next
+  }
+}
+intercell_knowledge <- intercell_knowledge[pairs_to_keep, ]
+receptors <- intercell_knowledge$target_genesymbol %>% unique()
+ligands <- intercell_knowledge$source_genesymbol %>% unique()
+
+# List of LRpairs
+LR_pairs <- paste0(intercell_knowledge$source_genesymbol, "_", intercell_knowledge$target_genesymbol)
+cat("Ligand-Receptor pairs available: ", length(LR_pairs))
+
+# Update gene expression matrix
+Expr_genes <- Expr_genes[unique(c(ligands, receptors)), ]
+
+```
+
+## Investigate Ligand-Receptor pairs expression when aggregating cell types 
+
+- We aggregate cell types to keep only our defined set of cells, however we find cases in which quanTIseq cell type corresponds to more than one Ramilowski cell type. 
+- An example: "CAF" (quanTIseq) correspond to "Fibroblast.Lymphatic" and "Fibroblast.Skin.Normal" (Ramilowski).
+
+- Also on L-R alone
+
+```{r, echo=FALSE}
+str_aggr_celltypes <- gsub("1|2", "", names(unlist(aggregated_matched_cell_types)[match(colnames(Expr_genes), unlist(aggregated_matched_cell_types))]))
+
+Expr_genes <- rbind(str_aggr_celltypes, Expr_genes) 
+rownames(Expr_genes)[1] <- "Aggregate"
+
+affected_celltypes <- sapply(names(aggregated_matched_cell_types), function(X) length(aggregated_matched_cell_types[[X]]) > 1)
+affected_celltypes <- names(aggregated_matched_cell_types)[affected_celltypes]            
+
+tmp <- Expr_genes[, Expr_genes["Aggregate",] %in% affected_celltypes]
+tmp <- tmp[-1, ]
+tmp <- apply(tmp, 2, as.numeric)
+rownames(tmp) <- rownames(Expr_genes)[2:nrow(Expr_genes)]
+# assess correlation
+# matrix of the p-value of the correlation
+p.mat <- cor.mtest(tmp)
+col<- colorRampPalette(c("red", "white", "blue"))(20)
+corrplot(cor(tmp, method = "pearson"), method = "color", order = "hclust",
+         addCoef.col = "black", # Add coefficient of correlation
+         tl.col="black", tl.srt=45, #Text label color and rotation
+         number.cex = 0.85, tl.cex=0.85, col = col, # 
+         #p.mat = p.mat, sig.level = 0.05, insig = c("blank"), # Combine with significance
+         na.label = "square", na.label.col = "white")
+
+```
+- Most pairwise correlations seem quite high, except for the Fibroblasts (PeCorr=0.64, sufficient?)
+
+> Aggregation of cell types: match cell types from quantiseq with ramilowski
+
+- This aggregation was based on Maisa's externship report.
+- We average cell types matching more than one ramilowski cell type
+
+```{r, echo=FALSE}
+RNA_tpm <- Expr_genes[, Expr_genes["Aggregate",] %in% affected_celltypes]
+
+for (ii in affected_celltypes){
+  
+  tmp <- RNA_tpm[2:nrow(RNA_tpm), RNA_tpm["Aggregate",] == ii]
+  tmp <- apply(tmp, 2, as.numeric)
+  average_tmp <- apply(tmp, 1, mean)
+  
+  RNA_tpm[2:nrow(RNA_tpm), RNA_tpm["Aggregate",] == ii][, 1] <- average_tmp
+  RNA_tpm[2:nrow(RNA_tpm), RNA_tpm["Aggregate",] == ii][, 2] <- NA
+  
+}
+
+RNA_tpm <- RNA_tpm[, !apply(RNA_tpm, 2, anyNA)]
+colnames(RNA_tpm) <- RNA_tpm["Aggregate", ]
+RNA_tpm <- RNA_tpm[-1, ]
+genes <- rownames(RNA_tpm)
+RNA_tpm <- apply(RNA_tpm, 2, as.numeric)
+rownames(RNA_tpm) <- genes
+
+RNA_tpm_other <- Expr_genes[, !Expr_genes["Aggregate",] %in% affected_celltypes]
+colnames(RNA_tpm_other) <- RNA_tpm_other["Aggregate", ]
+RNA_tpm_other <- RNA_tpm_other[-1, ]
+genes <- rownames(RNA_tpm_other)
+RNA_tpm_other <- apply(RNA_tpm_other, 2, as.numeric)
+rownames(RNA_tpm_other) <- genes
+
+RNA_expr <- cbind(RNA_tpm, RNA_tpm_other)
+```
+
+## Build cell-cell communication (ccc) intermediate table
+
+> Each sender cell type and its ligand, each receiver cell type and its receptor, both with their corresponding expression.
+
+```{r}
+ccc_table <- do.call(rbind, lapply(colnames(RNA_expr), function(cell_type){
+  ccc_table <- do.call(rbind, lapply(1:length(LR_pairs), function(LR_pos){
+    
+    L <- sapply(strsplit(LR_pairs[LR_pos], split = "_"), head, 1)
+    R <- sapply(strsplit(LR_pairs[LR_pos], split = "_"), tail, 1)
+    
+    tmp_table <- data.frame(Sender = cell_type, 
+                            Ligand = L, 
+                            Expr_Ligand = as.numeric(RNA_expr[L,cell_type]),
+                            Receiver = colnames(RNA_expr), 
+                            Receptor = R,
+                            Expr_Receptor= as.numeric(RNA_expr[R,]))
+    
+    return(tmp_table)
+  }))
+  return(ccc_table)
+}))
+
+connections_cell_type <- aggregate(Ligand ~ Sender + Receiver , data = ccc_table, FUN = "length") 
+colnames(connections_cell_type)[3] <- "n_connections"
+
+cat("Head cell-cell communication network: \n")
+head(ccc_table)
+cat("Number of total connections: ", nrow(ccc_table))
+```
+
+> Apply 10 TPM threshold to resemble expressed pairs (L >= 10, R >= 10)
+
+```{r}
+# only pairs where both ligand and receptor have TPM >= 10 are kept (expressed pairs)
+ccc_table_filtered <- ccc_table[ccc_table$Expr_Ligand >= 10 & ccc_table$Expr_Receptor >= 10, ] 
+cat("Head cell-cell communication network (>= 10 TPM): \n")
+head(ccc_table_filtered)
+cat("Number of connections (TPM >= 10): ", nrow(ccc_table_filtered))
+
+# new list of LRpairs
+LR_pairs <- unique(paste0(ccc_table_filtered$Ligand, "_", ccc_table_filtered$Receptor))
+cat("Ligand-Receptor pairs available (TPM>=10): ", length(LR_pairs))
+
+# counting connections per cell type
+connections_cell_type <- aggregate(Ligand ~ Sender + Receiver , data = ccc_table_filtered, FUN = "length") 
+colnames(connections_cell_type)[3] <- "n_connections"
+
+# heatmap plot
+ggplot(connections_cell_type ,aes(x = Sender, y = Receiver, fill = n_connections)) +
+  geom_tile(color = "white", size = .1) + 
+  scale_fill_gradient(low = "yellow", high = "red", na.value = NA, name = "Number of \nconnections")+
+  theme_minimal() +
+  geom_text(aes(label= n_connections), stat = "identity", color="black", 
+            size = 4, angle = 0, position = position_dodge(0.2)) +  
+  ggplot2::coord_fixed(0.8) +
+  theme(panel.grid = element_blank(), axis.text.x = element_text(angle = 0, hjust = 1, color = "black"),
+        axis.text.y = element_text(angle = 0, hjust = 1, color = "black"),
+                legend.position = "right", legend.direction = "vertical",
+                 legend.text=element_text(size=12, angle = 0, hjust = 0.8),  
+                 legend.title = element_text(size =14, face = "bold", vjust = .9)) +
+  labs(title = "Number of connections per cell type in our network")
+```
+> Export tables into excel files
+
+```{r, echo=FALSE}
+# write.csv(ccc_table, 
+#           file = "../../../data/output_curated_ccc_tables/updated_expressed_ccc_table_omnipath_ramilowski_quantiseq.csv")
+# write.csv(ccc_table_filtered,
+#           file = "../../../data/output_curated_ccc_tables/updated_expressed_ccc_table_omnipath_ramilowski_quantiseq_filtered_LR_10tpm.csv")
+
+LRpairs <- data.frame(LRpairs=unique(paste0(tmp$Ligand, "_", tmp$Receptor)))
+
+# export LRpairs to excel file
+write.csv(LRpairs, file = "../input_data_model1/LRpairs.csv")
+
+```
+
+## Obtain input data tables required for Model 1
+
+### Ligands vs cell types compatibility 
+
+```{r}
+ccc <- ccc_table_filtered
+celltypes <- intersect(ccc$Sender %>% unique(), ccc$Receiver %>% unique())
+ligands <- ccc$Ligand %>% unique()
+
+celltype_L <- matrix(0, nrow = length(celltypes), ncol = length(ligands))
+rownames(celltype_L) <- celltypes
+colnames(celltype_L) <- ligands
+  
+for (CellType in celltypes){
+  # filter for cell type and unique ligands
+  tmp_celltype_L <- ccc %>%
+    filter(Sender == CellType) %>% 
+    select(Ligand) %>% unique()
+  # index matching ligands
+  idx <- names(celltype_L[CellType, ]) %in% tmp_celltype_L$Ligand
+  # set to 1
+  celltype_L[CellType, idx] <- 1
+}
+
+cat("Ligand-celltype compatibility: IFNG \n")
+celltype_L[, "IFNG"]
+
+# export table to excel file
+#write.csv(celltype_L, file = "../input_data_model1/celltype_ligand.csv")
+
+```
+
+### Receptors vs cell-types compatibility 
+
+```{r}
+receptors <- ccc$Receptor %>% unique()
+celltype_R <- matrix(0, nrow = length(celltypes), ncol = length(receptors))
+rownames(celltype_R) <- celltypes
+colnames(celltype_R) <- receptors
+
+for (CellType in celltypes){
+  # filter for cell type and unique ligands
+  tmp_celltype_R <- ccc %>%
+    filter(Receiver == CellType) %>% 
+    select(Receptor) %>% unique()
+  # index matching ligands
+  idx <- names(celltype_R[CellType, ]) %in% tmp_celltype_R$Receptor
+  # set to 1
+  celltype_R[CellType, idx] <- 1
+}
+
+cat("Receptor-celltype compatibility: IFNGR1 \n")
+celltype_R[, "IFNGR1"]
+cat("Receptor-celltype compatibility: IFNGR2 \n")
+celltype_R[, "IFNGR2"]
+
+# export table to excel file
+#write.csv(celltype_R, file = "../input_data_model1/celltype_receptor.csv")
+```
+
+```
