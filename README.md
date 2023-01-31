@@ -27,7 +27,19 @@ In execution of the Python code make sure that all Python functions are located 
 ## Software
 ### R-code
 
-- [ ] To write
+We used R version 4.2.0 and the following R packages were used:
+
+- liana 0.1.10
+- OmnipathR 3.7.0
+- immunedeconv 2.1.0
+- easier 1.4.0
+- EPIC 1.1.5
+- MCPcounter 1.2.0
+- quantiseqr 1.6.0
+- xCell 1.1.0
+- ConsensusTME 0.0.1.9000
+- corrplot 0.92
+- dplyr 1.0.10
 
 ### Python-code
 The code was developed and run in Anaconda on Python 3.8.11. The following Python packages are used:
@@ -47,7 +59,10 @@ Finally, in the *Envs* folder we have uploaded the file *RaCInG_Environment.yaml
 
 ## Files
 ### R files
-- [ ] To write
+- **RaCInG_ccc_prior_knowledge.Rmd**: RMarkdown notebook to extract knowledge of cell-type compatibility of ligands and receptors. We rendered this .Rmd file into a HTML file which reports the main results of each step of the analysis (**RaCInG_ccc_prior_knowledge.html**).
+- **RaCInG_input_tcga.Rmd**: RMarkdown notebook used to quantify cell-type abundance, ligand-receptor pair activation and immune response for patients from The Cancer Genome Atlas (TCGA).
+- **RaCInG_input_published_cohorts.Rmd**: RMarkdown notebook used to to quantify cell-type abundance and ligand-receptor pair activation for the validation cohorts (datasets of patients treated with immunotherapy).
+- **utils/run_TMEmod_deconvolution**: Runs in silico deconvolution from bulk-tumor RNA-seq data through `immunedeconv` R package.
 
 ### Python files
 We explain the basic functionalities of all Python files. Please consult the demo for the usage. Additionally, all functions in the files have been given docstrings that should explain their funcitonality in more detail.
@@ -65,6 +80,10 @@ We explain the basic functionalities of all Python files. Please consult the dem
 - **statistical_analysis.py**: Executes statistical analysis on normalized feature values based on metadata from patients.
 - **retrieveLigRecInfo.py**: Computes probabilities of ligand-receptor interactions conditioned on the appearance of a ligand-receptor interaction between two given cell types (and plots the pairs with the largerst conditional probability).
 - **Circos.py**: Computes direct communcation values for all patients based on the network kernel, and outputs the average for a group of patients in a format that can be read by the online tool Circos[^circosNote] to create a plot.
+
+## Data
+
+- **expressed_ccc_table_omnipath_ramilowski_quantiseq_filtered_LR_10tpm.csv**: .csv file containg the extracted prior knowledge of cell-cell communication (returned as output by **RaCInG_ccc_prior_knowledge.Rmd**).
 
 ## Additional Folders
 The folder *Envs* contains the environments used when executing RaCInG to obtain the results in the paper. The folder *Manuals* contains a more detailed description of the input matrices used in RaCInG, and the outputs that the graph generation pipeline creates. 

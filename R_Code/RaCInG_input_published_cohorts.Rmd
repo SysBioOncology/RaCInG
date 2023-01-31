@@ -38,11 +38,14 @@ knitr::opts_chunk$set(fig.height = 9, fig.width = 9)
 folderValidation <- "/Users/Oscar/ownCloud2/SystemsImmunoOncology/Mechanistic_signatures_project/data/Validation/prediction_files"
 
 ## path to curated cell-cell communication table
-#path_to_CCCtable <- "./utils/expressed_ccc_table_omnipath_ramilowski_quantiseq_filtered_LR_10tpm.csv"
-path_to_CCCtable <- "./utils/updated_expressed_ccc_table_omnipath_ramilowski_quantiseq_filtered_LR_10tpm.csv"
+path_to_CCCtable <- "../Data/CCC_PKN/expressed_ccc_table_omnipath_ramilowski_quantiseq_filtered_LR_10tpm.csv"
+
+## path to output folder
+path_to_output <- ""
+
 ```
 
-> Cell-cell communication table obtained from data curation
+> Cell-cell communication table obtained from `RaCInG_ccc_prior_knowledge.Rmd`
 
 ```{r}
 
@@ -54,20 +57,13 @@ LR_pairs <- unique(paste0(ccc_table_filtered$Ligand, "_", ccc_table_filtered$Rec
 
 ```
 
-> Ligand-Receptor interactions weights for TCGA data
+> Compute ligand-receptor pair weights
 
 ```{r}
 
-datasets_bulk <-c(#"hugo" = "SKCM",
-                  #"liu" = "SKCM",
-                  #"gideauslanderpd1" = "SKCM",
-                  #"gideauslanderpd1on" = "SKCM",
-                  #"cho" = "NSCLC",
-                  #"jung" = "NSCLC",
-                  #"kim" =  "STAD",
-                  #"mariathasan" = "BLCA",
-                  #"mcdermott" = "KIRC",
-                  "zhao" = "GBM")
+datasets_bulk <-c("gideauslanderpd1" = "SKCM",
+                  "gideauslanderpd1on" = "SKCM",
+                  "kim" =  "STAD")
 
 for (dataset in names(datasets_bulk)){
   
@@ -104,49 +100,23 @@ for (dataset in names(datasets_bulk)){
   colnames(LR_pairs_computed) <- gsub(".", "-", colnames(LR_pairs_computed), fixed = TRUE)
   LR_pairs_computed <- t(LR_pairs_computed)
   
-  write.csv(LR_pairs_computed,
-            file = paste0("../../../data/random_graphs_input/validation/", tolower(cancer.type), "_", dataset, "/updated_", dataset, "_LRpairs_weights_min.csv"))
+  write.csv(LR_pairs_computed, file = file.path(path_to_output, dataset, "LRpair_weights_min.csv"))
   
-}
-
-datasets_bulk <-c("hugo" = "SKCM",
-                  "liu" = "SKCM",
-                  "gideauslanderpd1" = "SKCM",
-                  "gideauslanderpd1on" = "SKCM",
-                  "cho" = "NSCLC",
-                  "jung" = "NSCLC",
-                  "kim" =  "STAD",
-                  "mcdermott" = "KIRC",
-                  "zhao" = "GBM")
-
-# validation
-for (dataset in names(datasets_bulk)){
-  
-  cat("Dataset:", dataset, "\n")
-  # get cancer type
-  cancer.type <- as.character(datasets_bulk[dataset])
-  
-  system(paste0("cp ../../../data/random_graphs_input/validation/", tolower(cancer.type), "_", dataset, "/updated_", dataset, "_LRpairs_weights_min.csv ../../../data/random_graphs_input/validation/updated_validation_data_for_mike/ "))
-         
 }
 
 ```
 
-> Cell fractions for TCGA data
+> Compute cell-type abundance
 
 ```{r}
 
-# functions to compute consensus cell fractions (FF)
-source("../Compute_CellFractions_FF/run_TMEmod_deconvolution.R")
+# functions to compute consensus cell fractions
+source("./utils/run_TMEmod_deconvolution.R")
 range01 <- function(x){(x-min(x))/(max(x)-min(x))}
 
-datasets_bulk <-c("hugo" = "SKCM",
-                  #"liu" = "SKCM")
-                  #"gide_auslander_pd1" = "SKCM",
-                  "cho" = "LUSC",
-                  "jung" = "LUSC",
-                  "kim" =  "STAD",
-                  "riaz" = "SKCM")
+datasets_bulk <-c("gideauslanderpd1" = "SKCM",
+                  "gideauslanderpd1on" = "SKCM",
+                  "kim" =  "STAD")
 
 for (dataset in names(datasets_bulk)){
   
@@ -347,75 +317,24 @@ for (dataset in names(datasets_bulk)){
     print(res)
     
   }
-  
-  if (dataset %in% c("cho", "jung"))  {
-    pdf(paste0("../../data/random_graphs_input/validation/", tolower("NSCLC"), "_", dataset, "/", dataset, "_lusc_TMEmod_cell_fractions_corr.pdf"))
-  }else{
-    pdf(paste0("../../data/random_graphs_input/validation/", tolower(cancer.type), "_", dataset, "/", dataset, "_TMEmod_cell_fractions_corr.pdf"))
-  }
 
-  corrplot(DCres.cor,
-           tl.col = "black",
-           tl.cex = 0.7)
+  #corrplot(DCres.cor,
+  #         tl.col = "black",
+  #         tl.cex = 0.7)
   #order = "hclust",
   #hclust.method = "ward.D2"
-  dev.off()
-  
-  boxplot(CellFrac.norm, las = 2)
-  
-  if (dataset %in% c("cho", "jung"))  {
-    save(CellFrac.norm, file = paste0("../../data/random_graphs_input/validation/", tolower("NSCLC"), "_", dataset, "/", dataset, "_lusc_TMEmod_cell_fractions.RData"))
-  }else{
-    save(CellFrac.norm, file = paste0("../../data/random_graphs_input/validation/", tolower(cancer.type), "_", dataset, "/", dataset, "_TMEmod_cell_fractions.RData"))
-  }
-  
-}
 
-datasets_bulk <-c("hugo" = "SKCM",
-                  #"liu" = "SKCM",
-                  #"gide_auslander_pd1" = "SKCM",
-                  #"cho" = "NSCLC",
-                  #"jung" = "NSCLC",
-                  "kim" =  "STAD",
-                  "zhao" = "GBM",
-                  "riaz" = "SKCM")
-# to .csv file
-
-for (dataset in names(datasets_bulk)){
+  #boxplot(CellFrac.norm, las = 2)
   
-  cat("Dataset:", dataset, "\n")
-  # get cancer type
-  cancer.type <- as.character(datasets_bulk[dataset])
-  
-  if (dataset %in% c("cho", "jung"))  {
-    load(file = paste0("../../data/random_graphs_input/validation/", tolower("NSCLC"), "_", dataset, "/", dataset, "_lusc_TMEmod_cell_fractions.RData"))
-  }else{
-    load(file = paste0("../../data/random_graphs_input/validation/", tolower(cancer.type), "_", dataset, "/", dataset, "_TMEmod_cell_fractions.RData"))
-  }
-
-  if (dataset %in% c("cho", "jung"))  {
-    write.csv(CellFrac.norm,
-              file= paste0("../../data/random_graphs_input/validation/", tolower("NSCLC"), "_", dataset, "/", dataset, "_lusc_TMEmod_cell_fractions.csv"), 
-              row.names = TRUE)
-  }else{
-    
-    write.csv(CellFrac.norm,
-            file= paste0("../../data/random_graphs_input/validation/", tolower(cancer.type), "_", dataset, "/", dataset, "_TMEmod_cell_fractions.csv"), 
+  # to .csv file
+  write.csv(CellFrac.norm,
+            file= file.path(path_to_output, dataset, "TMEmod_cell_fractions.csv"), 
             row.names = TRUE)
-  }
-
 }
 
-
 ```
 
-> Immune Response scores
-
-```{r}
-
-```
-
-> Metadata: response, immune subtypign from bagaev, OS, PFS
+> Obtain clean metadata for validation cohorts: immuntherapy response, immune subtyping from bagaev, OS, PFS
 
 ```{r}
 
@@ -429,48 +348,12 @@ MFP_melanoma <- MFP_melanoma[,c("Sample", "Cohort", "MFP", "Patient", "Gender", 
                                 "Mutation_Subtype", "Mutation_load", "Mutation_Status",            
                                 "Purity", "Storage_method")]
 
-## riaz
-load("../../data/random_graphs_input/validation/skcm_riaz/riaz_TMEmod_cell_fractions.RData")
-MFP_riaz <- MFP_melanoma %>% filter(Cohort == "Riaz" & Sample %in% rownames(CellFrac.norm))
-MFP_riaz <- MFP_riaz[,c("Sample", "MFP", "Recist", "Response", "OS", "OS_FLAG", "Prior_aCTLA4", "Checkpoint_Therapy_Design", "Mutation_load", "Mutation_Subtype")]
-MFP_riaz <- MFP_riaz[match(rownames(CellFrac.norm), MFP_riaz$Sample),]
-
-rownames(MFP_riaz) <- MFP_riaz$Sample
-MFP_riaz$Sample <- NULL
-write.csv(MFP_riaz, file = "../../data/random_graphs_input/validation/validation_data_for_mike/metadata_riaz.csv", row.names = FALSE)
-
-## hugo (anatomical locations of samples quite diverse)
-annotation_hugo <- read.csv("~/ownCloud2/SystemsImmunoOncology/Mechanistic_signatures_project/data/Validation/Clinical_data_files/Hugo_clinical_data.csv", 
-                            sep = ";", header = TRUE, skip = 2, nrows = 39)
-load("~/ownCloud2/SystemsImmunoOncology/Mechanistic_signatures_project/data/Validation/Francesca/Hugo/Hugo_sampleinfo.rdata")
-load("../../data/random_graphs_input/validation/skcm_hugo/hugo_TMEmod_cell_fractions.RData")
-
-sampleinfo <- sampleinfo[rownames(CellFrac.norm), ]
-sampleinfo$patient_id_s <- as.character(sampleinfo$patient_id_s)
-MFP_hugo <- MFP_melanoma %>% filter(Cohort == "Hugo")
-sampleinfo$patient_id_s[grep("Pt27", sampleinfo$patient_id_s)] <- c("Pt27a", "Pt27b")
-MFP_hugo <- MFP_hugo %>% filter(Sample %in% sampleinfo$patient_id_s)
-rownames(MFP_hugo) <- rownames(sampleinfo[match(MFP_hugo$Sample, sampleinfo$patient_id_s), ])
-
-# Add missing patient (from annotation_hugo)
-MFP_hugo <- rbind(MFP_hugo, NA)
-rownames(MFP_hugo)[27] <- "SRR3184300"
-MFP_hugo[27, "Sample"] <- "Pt28"
-MFP_hugo[27, c("Recist", "Response")] <- c("PR", "R")
-MFP_hugo[27, c("Gender", "Age")] <- c("M", "82")
-MFP_hugo[27, c("OS", "OS_FLAG")] <- c(439, 1)
-MFP_hugo[27, c("Prior_MAPKi")] <- "No"
-
-MFP_hugo <- MFP_hugo[match(rownames(CellFrac.norm), rownames(MFP_hugo)),]
-MFP_hugo <- MFP_hugo[,c("Sample", "MFP", "Recist", "Response", "OS", "OS_FLAG", "Prior_MAPKi", "Checkpoint_Therapy_Design", "Mutation_load", "Mutation_Subtype")]
-
-write.csv(MFP_hugo, file = "../../data/random_graphs_input/validation/validation_data_for_mike/metadata_hugo.csv", row.names = FALSE)
-
-## gideauslanderpd1
+# ---------------------- #
+## gideauslanderpd1 ##
+# ---------------------- #
 MFP_gideauslanderpd1 <- MFP_melanoma %>% filter(Cohort %in% c("Auslander", "Gide"))
 load("../../../gene_panel/data/validation/bulk/all_validation_datasets/all_gideauslanderpd1.RData")
 MFP_gideauslanderpd1 <- MFP_gideauslanderpd1[match(folder_gideauslanderpd1$clinical_response$Sample, MFP_gideauslanderpd1$Sample),]
-
 
 MFP_gideauslanderpd1 <- MFP_gideauslanderpd1[,c("Sample", "MFP", "Recist", "Response", "OS", "OS_FLAG", "Prior_aCTLA4", "Prior_MAPKi", "Checkpoint_Therapy_Design")]
 MFP_gideauslanderpd1$Prior_aCTLA4[MFP_gideauslanderpd1$Prior_aCTLA4 == ""] <- "No"
@@ -483,7 +366,9 @@ MFP_gideauslanderpd1$Sample <- NULL
 
 write.csv(MFP_gideauslanderpd1, file = "../../data/random_graphs_input/validation/validation_data_for_mike/metadata_gideauslanderpd1.csv", row.names = FALSE)
 
-## gideauslanderpd1on
+# ---------------------- #
+## gideauslanderpd1on ##
+# ---------------------- #
 MFP_gideauslanderpd1on <- MFP_melanoma %>% filter(Cohort %in% c("Auslander", "Gide"))
 load("../../../gene_panel/data/validation/bulk/all_validation_datasets/all_gideauslanderpd1_ontreatment.RData")
 MFP_gideauslanderpd1on <- MFP_gideauslanderpd1on[match(folder_gideauslanderpd1_on$clinical_response$Sample, MFP_gideauslanderpd1on$Sample),]
@@ -498,35 +383,9 @@ MFP_gideauslanderpd1on <- MFP_gideauslanderpd1on[match(rownames(CellFrac.norm), 
 MFP_gideauslanderpd1on$Sample <- NULL
 write.csv(MFP_gideauslanderpd1on, file = "../../data/random_graphs_input/validation/validation_data_for_mike/metadata_gideauslanderpd1on.csv", row.names = FALSE)
 
-
-## melanoma (liu)
-load("../../data/random_graphs_input/validation/skcm_liu/liu_TMEmod_cell_fractions.RData")
-load("~/ownCloud2/SystemsImmunoOncology/Mechanistic_signatures_project/data/Validation/Francesca/Liu/Liu_sampleinfo.rdata")
-sampleinfo <- sampleinfo[,-1]
-# Complete set of pre-treatment samples follow this criteria
-pre.sampleinfo <- subset(sampleinfo, daysBiopsyAfterIpiStart == "na" & numPriorTherapies == 0 &
-                           biopsyContext..1.Pre.Ipi..2.On.Ipi..3.Pre.PD1..4.On.PD1. %in% c(1,3))
-
-MFP_liu <- MFP_melanoma %>% filter(Cohort %in% c("Liu") & Sample %in% rownames(CellFrac.norm)) # Missing Patient143 and Patient184
-MFP_liu <- MFP_liu[,c("Sample", "MFP", "Recist", "Response", "PFS", "PFS_FLAG", "OS", "OS_FLAG", "Prior_MAPKi", "Checkpoint_Therapy_Design", 
-                      "Mutation_load", "Mutation_Status", "Days2PD1")]
-rownames(MFP_liu) <- MFP_liu$Sample
-pre.sampleinfo$Sample <- rownames(pre.sampleinfo)
-pre.sampleinfo <- pre.sampleinfo[, c("Sample", "biopsy.site", "biopsy.site_categ", "Primary_Type", "TimeToBR", "Tx", "Mstage..IIIC.0..M1a.1..M1b.2..M1c.3.", "Tx_Start_LDH", "LDH_Elevated", "Brain_Met", "Cut_SubQ_Met", "LN_Met", "Lung_Met", "Liver_Visc_Met","Bone_Met")]
-
-# Add missing patients ("Patient143" "Patient184")
-MFP_liu <- rbind(MFP_liu, NA, NA)
-rownames(MFP_liu)[45:46] <- MFP_liu$Sample[45:46] <- c("Patient143", "Patient184")
-
-MFP_liu <- MFP_liu %>% left_join(pre.sampleinfo, by = "Sample")
-rownames(MFP_liu) <- MFP_liu$Sample
-MFP_liu$Sample <- NULL
-MFP_liu <- MFP_liu[match(rownames(CellFrac.norm), rownames(MFP_liu)),]
-rownames(MFP_liu)[is.na(MFP_liu$MFP)] <- rownames(CellFrac.norm)[is.na(MFP_liu$MFP)]
-
-write.csv(MFP_liu, file = "../../data/random_graphs_input/validation/validation_data_for_mike/metadata_liu.csv", row.names = FALSE)
-
-## gastric (kim)
+# ---------------------- #
+## gastric cancer (kim) ##
+# ---------------------- #
 load("../../data/random_graphs_input/validation/stad_kim/kim_TMEmod_cell_fractions.RData")
 load("~/ownCloud2/SystemsImmunoOncology/Mechanistic_signatures_project/data/Validation/Francesca/Kim/Kim_sampleinfo.rdata")
 pre.sampleinfo <- subset(sampleinfo, Assay.Type == "RNA-Seq")
@@ -540,60 +399,5 @@ rownames(MFP_gastric) <- rownames(pre.sampleinfo)
   
 MFP_gastric <- MFP_gastric[match(rownames(CellFrac.norm), rownames(MFP_gastric)),]
 write.csv(MFP_gastric, file = "../../data/random_graphs_input/validation/validation_data_for_mike/metadata_kim.csv", row.names = FALSE)
-
-## lung (jung)
-load("../../data/random_graphs_input/validation/nsclc_jung/jung_lusc_TMEmod_cell_fractions.RData")
-sampleinfo <- read.csv("~/ownCloud2/SystemsImmunoOncology/Mechanistic_signatures_project/data/Validation/prediction_files/jung/sra_metadata_jung.csv", sep = ";")
-sampleinfo$Title <- sapply(strsplit(sampleinfo$Title, split = ":"), head, 1)
-
-MFP_lung <- read.csv("../../data/Bagaev_MFP_subtyping/annotation-lung.tsv", header=TRUE, sep = "\t")
-MFP_lung <- MFP_lung[,c("Sample", "GSM", "MFP", "Response", "PFS", "PFS_FLAG", "Mutation_Load", "TMB", "Global_Methylation_Level")]
-
-sampleinfo <- sampleinfo[match(MFP_lung$GSM, sampleinfo$Title),]
-rownames(MFP_lung) <- sampleinfo$Accession
-
-MFP_lung <- MFP_lung[match(rownames(CellFrac.norm), rownames(MFP_lung)),]
-MFP_lung$GSM <- NULL
-
-write.csv(MFP_lung, file = "../../data/random_graphs_input/validation/validation_data_for_mike/metadata_jung.csv", row.names = FALSE)
-
-## bladder (mariathasan)
-# MFP_bladder <- read.csv("../../data/Bagaev_MFP_subtyping/annotation-bladder.tsv", header=TRUE, sep = "\t")
-# colnames(MFP_bladder)[1] <- "Patient"
-# MFP_bladder <- MFP_bladder[,c("Patient", "subject_id", "GSM", "MFP", "Response", "PFS", "PFS_FLAG", "Mutation_Load", "TMB", "Global_Methylation_Level")]
-
-## zhao (no mfp available)
-load("../../data/random_graphs_input/validation/gbm_zhao/zhao_TMEmod_cell_fractions.RData")
-load("~/ownCloud2/SystemsImmunoOncology/Mechanistic_signatures_project/data/Validation/prediction_files/zhao/Zhao_sampleinfo.rdata")
-load("~/ownCloud2/SystemsImmunoOncology/Mechanistic_signatures_project/data/Validation/prediction_files/zhao/all_zhao.RData")
-
-clinical_PD1 <- read.csv(file = "~/ownCloud2/SystemsImmunoOncology/Mechanistic_signatures_project/data/Validation/Francesca/Zhao/GBM_PD1_samples.csv", sep = ",", header = T)
-clinical_PD1.pre <- subset(clinical_PD1, pre.or.post == "pre" & RNA.seq. == "Yes")
-clinical_PD1.pre$DNA.Sampel.Name <- gsub(" ","", as.character(clinical_PD1.pre$DNA.Sampel.Name), fixed = T)
-sampleinfo$Sample.Name <- gsub(" ","", as.character(sampleinfo$Sample.Name), fixed = T)
-sampleinfo <- sampleinfo[na.omit(match(rownames(CellFrac.norm), rownames(sampleinfo))),]
-clinical_PD1.pre.aval <- clinical_PD1.pre[na.omit(match(sampleinfo$Sample.Name, clinical_PD1.pre$DNA.Sampel.Name)),]
-rownames(clinical_PD1.pre.aval) <- rownames(sampleinfo)
-
-clinical_PD1.pre.aval <- clinical_PD1.pre.aval[match(rownames(CellFrac.norm), rownames(clinical_PD1.pre.aval)),]
-MFP_zhao <- clinical_PD1.pre.aval
-MFP <- NA
-TMB <- as.numeric(folder_zhao$TMB$TMB)
-MFP_zhao <- cbind(MFP, MFP_zhao, TMB)
-MFP_zhao$RNA.seq. <- MFP_zhao$pre.or.post <- MFP_zhao$DNA.FROM.BLOOD.SAMPLE <- MFP_zhao$DNA.Sampel.Name <- NULL
-
-write.csv(MFP_zhao, file = "../../data/random_graphs_input/validation/validation_data_for_mike/metadata_zhao.csv", row.names = FALSE)
-
-## cho (no mfp available)
-load("../../data/random_graphs_input/validation/nsclc_cho/cho_lusc_TMEmod_cell_fractions.RData")
-sampleinfo <- read.csv("~/ownCloud2/SystemsImmunoOncology/Mechanistic_signatures_project/data/Validation/prediction_files/cho/SraRunTable_cho.csv", sep = ",")
-load("~/ownCloud2/SystemsImmunoOncology/Mechanistic_signatures_project/data/Validation/prediction_files/cho/all_cho.RData")
-MFP_cho <- cbind(MFP, folder_cho$clinical_response)
-MFP_cho$Sentrix_ID <- MFP_cho$Sentrix_Position <- NULL
-sampleinfo <- sampleinfo[match(rownames(MFP_cho), sampleinfo$Run), ]
-MFP_cho$biopsy_type <- sampleinfo$SAMPLE
-
-write.csv(MFP_cho, file = "../../data/random_graphs_input/validation/validation_data_for_mike/metadata_cho.csv", row.names = FALSE)
-
 
 ```

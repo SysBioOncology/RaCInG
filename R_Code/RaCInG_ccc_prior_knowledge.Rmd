@@ -90,9 +90,9 @@ library(knitr)
 table1 <- "
 | Resource   |  Data | Reference |
 | -----------------------  | ----------------------------------- | ----------------------------------- |
-| Liana | Inter-cellular interactions | Türei et al. Molecular systems biology, 2021; Dimitrov et al. Nat Commun, 2022 |
-| Ramilowski | RNA-seq data from 144 cell types | Ramilowski et al., Nat Comm, 2015 |
-| Deconvolution computational methods | Quantification of cell type fractions | .... |
+| Omnipath & Liana | Inter-cellular interactions | Türei et al. Molecular systems biology, 2021; Dimitrov et al. Nat Commun, 2022 |
+| Ramilowski | RNA-seq data from 144 cell types | Ramilowski et al., Nat Commun, 2015 |
+| In silico deconvolution | Quantification of individual cell-type abundance | quanTIseq, EPIC, ConsensusTME, xCell, TIMER, and MCP-counter |
 | Cancer Cell Line Encyclopedia | Cancer cell expressed L-R interactions | Barretina et al., Nat, 2012 |
 
 "
@@ -101,15 +101,15 @@ cat(table1)
 
 ## Curated cell-cell communication interactions
 
-> Retrieve LIANA's consensus resource of inter-cellullar communication network (`liana` R package version 0.1.8)
+> Using LIANA (`liana` R package version 0.1.10), we retrieve a customized set of intercellular interactions from OmniPath (`OmniPathR` R package version 3.7.0)
 
-- LIANA's Consensus Network includes expert-curated (in the context of CCC) interactions from “CellPhoneDB”, “CellChatDB”, “ICELLNET”, “connectomeDB2020”, and “CellTalkDB” resources.
+- This set includedg expert-curated (in the context of CCC) interactions from “CellPhoneDB”, “CellChatDB”, “ICELLNET”, “connectomeDB2020”, “CellTalkDB” and "Cellinker" resources.
 
 ```{r}
 
 # Retrieve consensus resource, curated  (in the context of CCC) ligand-receptor interactions
-curated_omni <- liana::get_curated_omni()
-# curated_omni <- select_resource("Consensus")[[1]]
+curated_omni <- liana::get_curated_omni() # returns, via OmniPath, the most up-to-date version of all databases.
+#curated_omni <- select_resource("Consensus")[[1]] #  retrieves the network stored by the developers.
 
 # Remove interactions from ECM
 curated_omni <- curated_omni %>% 
@@ -128,15 +128,13 @@ intercell_knowledge <- curated_omni
 
 ```
 
-- Conclusion:
-`get_curated_omni()` returns, via OmniPath, the most up-to-date version of all databases.
-`select_resource()` retrieves the network stored by the developers.
-
 ## Cell type fractions quantification
 
 > Retrieve cell types that can be quantified from deconvolution of RNA-seq data
 
-- Cell types: 
+- We used a consensus approach based on six deconvolution methods accessible through the immunedeconv (`immunedeconv` R package version 2.1.0): "quanTIseq", "EPIC", "ConsensusTME", "xCell", "TIMER", and "MCP-counter".
+
+- We considered the following cell types: 
 
   + Dendritic cells (DC)
   + CD8+ T cells (CD8+ T)
@@ -149,10 +147,12 @@ intercell_knowledge <- curated_omni
   + Natural Killer cells (NK)
   + Tumor cells (Tumor)
 
+- Cell-type distribution in TCGA SKCM cancer type: 
+
 ```{r, echo=FALSE}
 
-# Cell type fractions obtained for TCGA GBM dataset
-celltype_quantification <- read.csv(file = "../input_data_model1/GBM_TMEmod_cell_fractions.csv",
+# Cell type fractions obtained for TCGA SKCM dataset
+celltype_quantification <- read.csv(file = "../input_data_model1/SKCM_TMEmod_cell_fractions.csv",
                                     row.names = 1)
 
 # Cell type names
@@ -490,18 +490,26 @@ ggplot(connections_cell_type ,aes(x = Sender, y = Receiver, fill = n_connections
                  legend.title = element_text(size =14, face = "bold", vjust = .9)) +
   labs(title = "Number of connections per cell type in our network")
 ```
+
 > Export tables into excel files
 
 ```{r, echo=FALSE}
+
+# Save ccc tables: 
+
+## Original 
 # write.csv(ccc_table, 
 #           file = "../../../data/output_curated_ccc_tables/updated_expressed_ccc_table_omnipath_ramilowski_quantiseq.csv")
+
+## With >=10 TPM threshold
 # write.csv(ccc_table_filtered,
 #           file = "../../../data/output_curated_ccc_tables/updated_expressed_ccc_table_omnipath_ramilowski_quantiseq_filtered_LR_10tpm.csv")
 
-LRpairs <- data.frame(LRpairs=unique(paste0(tmp$Ligand, "_", tmp$Receptor)))
+# Save list of LR interactions
+df_LRpairs <- data.frame(LRpairs=unique(paste0(ccc_table_filtered$Ligand, "_", ccc_table_filtered$Receptor)))
 
 # export LRpairs to excel file
-write.csv(LRpairs, file = "../input_data_model1/LRpairs.csv")
+write.csv(df_LRpairs, file = "../input_data_model1/LRpairs.csv")
 
 ```
 
@@ -563,6 +571,5 @@ celltype_R[, "IFNGR2"]
 
 # export table to excel file
 #write.csv(celltype_R, file = "../input_data_model1/celltype_receptor.csv")
-```
 
 ```

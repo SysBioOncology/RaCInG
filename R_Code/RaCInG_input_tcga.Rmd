@@ -35,9 +35,10 @@ knitr::opts_chunk$set(fig.height = 9, fig.width = 9)
 cancer_types <- c("BLCA", "CRC", "NSCLC", "KIRC", "SKCM", "STAD") 
 
 path_to_TPMfolder <- "../../../../Mechanistic_signatures_project/data/TCGA_tpm_files/"
-#path_to_CCCtable <- "./utils/expressed_ccc_table_omnipath_ramilowski_quantiseq_filtered_LR_10tpm.csv"
-path_to_CCCtable <- "./utils/updated_expressed_ccc_table_omnipath_ramilowski_quantiseq_filtered_LR_10tpm.csv"
+path_to_CCCtable <- "../Data/CCC_PKN/expressed_ccc_table_omnipath_ramilowski_quantiseq_filtered_LR_10tpm.csv"
 
+## path to output folder
+path_to_output <- ""
 ```
 
 > Curated cell-cell communication table
@@ -52,7 +53,7 @@ LR_pairs <- unique(paste0(ccc_table_filtered$Ligand, "_", ccc_table_filtered$Rec
 
 ```
 
-> Compute Ligand-Receptor interactions weights
+> Compute ligand-receptor pair weights
 
 ```{r}
 
@@ -94,23 +95,13 @@ for (cancer.type in cancer_types){
   colnames(LR_pairs_computed) <- gsub(".", "-", colnames(LR_pairs_computed), fixed = TRUE)
   LR_pairs_computed <- t(LR_pairs_computed)
   
-  write.csv(LR_pairs_computed, file = paste0("../../../data/random_graphs_input/tcga/", tolower(cancer.type), "/updated_", cancer.type, "_LRpairs_weights_min.csv"))
-}
+  write.csv(LR_pairs_computed, file = file.path(path_to_output, cancer.type, "LRpair_weights_min.csv"))
 
-# validation
-for (cancer.type in cancer_types){
-  
-  system(paste0("cp ../../../data/random_graphs_input/tcga/", tolower(cancer.type), "/updated_", cancer.type, "_LRpairs_weights_min.csv ../../../data/random_graphs_input/tcga/tcga_data_for_mike/"))
-  
-   system(paste0("cp ../../../data/random_graphs_input/tcga/", tolower(cancer.type), "/", cancer.type, "_LRpairs_weights_min.csv ../../../data/random_graphs_input/tcga/tcga_data_for_mike/"))
-   
-   system(paste0("cp ../../../data/random_graphs_input/tcga/", tolower(cancer.type), "/", cancer.type, "_TMEmod_cell_fractions.csv ../../../data/random_graphs_input/tcga/tcga_data_for_mike/"))
-         
 }
 
 ```
 
-> Compute cell-type fractions
+> Compute cell-type abundance
 
 ```{r}
 
@@ -118,7 +109,7 @@ for (cancer.type in cancer_types){
 source("./utils/run_TMEmod_deconvolution.R")
 range01 <- function(x){(x-min(x))/(max(x)-min(x))}
 
-for (cancer.type in cancer_types){
+DCres.cor <- lapply(cancer_types, function(cancer.type){
   
   # Read RNA-seq data
   if (cancer.type == "NSCLC"){
@@ -142,6 +133,8 @@ for (cancer.type in cancer_types){
       cellfrac <- cbind(cellfrac_LUAD[[X]], cellfrac_LUSC[[X]])
     })
     names(cellfrac) <- names(cellfrac_LUAD)
+  }else if (cancer.type == "CRC"){
+    cellfrac <- run_TMEmod_deconvolution(RNA_tpm, cancer_type = "COAD")
   }else{
     cellfrac <- run_TMEmod_deconvolution(RNA_tpm, cancer_type = cancer.type)
   }
@@ -214,7 +207,7 @@ for (cancer.type in cancer_types){
   (CD8_cor <- sort(CD8_cor[grep("^CD8_", names(CD8_cor))])) 
   # --> CD8_qTs has good agreement with all methods
   # --> Take CD8_qTs
-  plot(DCres$CD8_qTs, DCres$CD8_EPI); abline(0,1) # offset
+  #plot(DCres$CD8_qTs, DCres$CD8_EPI); abline(0,1) # offset
   CellFrac$CD8 <- DCres$CD8_qTs
   
   ## CAFs
@@ -229,7 +222,7 @@ for (cancer.type in cancer_types){
   (B_cor <- sort(B_cor[grep("^B_", names(B_cor))]))
   # --> B_qTs has good agreement with all methods
   # --> Take B_qTs
-  plot(DCres$B_qTs, DCres$B_EPI); abline(0,1)
+  #plot(DCres$B_qTs, DCres$B_EPI); abline(0,1)
   CellFrac$B <- DCres$B_qTs
   
   ## Natural Killer cells
@@ -280,7 +273,7 @@ for (cancer.type in cancer_types){
   DCrange[which(DCres$DC_xCl == 0)] <- 0
   DCrange <- range(DCrange)  
   CellFrac$DC <- DCcon * (DCrange[2] - DCrange[1]) + DCrange[1]
-  plot(DCres$DC_MCP, CellFrac$DC)
+  #plot(DCres$DC_MCP, CellFrac$DC)
   
   ## Regulatory T cells
   Treg_cor <- DCres.cor["Treg_qTs", -grep("_qTs$", colnames(DCres.cor))]
@@ -290,9 +283,9 @@ for (cancer.type in cancer_types){
   # --> Take Treg_qTs but set to 0 samples that are 0 for xCell
   CellFrac$Treg <- DCres$Treg_qTs
   CellFrac$Treg[DCres$Treg_xCl == 0] <- 0
-  plot(DCres$Treg_qTs, DCres$Treg_xCell)
-  plot(DCres$Treg_qTs, DCres$Treg_con)
-  plot(DCres$Treg_qTs, CellFrac$Treg)
+  #plot(DCres$Treg_qTs, DCres$Treg_xCell)
+  #plot(DCres$Treg_qTs, DCres$Treg_con)
+  #plot(DCres$Treg_qTs, CellFrac$Treg)
   
   ## Endothelial cells
   Endo_cor <- DCres.cor["Endo_EPI", -grep("_EPI$", colnames(DCres.cor))]
@@ -304,7 +297,7 @@ for (cancer.type in cancer_types){
   ## Tumor cells
   Tumor_cor <- DCres.cor["Tumor_qTs", -grep("_qTs$", colnames(DCres.cor))]
   (Tumor_cor <- sort(Tumor_cor[grep("^Tumor_", names(Tumor_cor))]))
-  plot(DCres$Tumor_EPI, DCres$Tumor_qTs); abline(0,1)
+  #plot(DCres$Tumor_EPI, DCres$Tumor_qTs); abline(0,1)
   # --> Tumor_qTs and Tumor_EPI have high agreement
   # --> Take EPIC (no Endo, no CAFs)
   CellFrac$Tumor <- DCres$Tumor_EPI
@@ -318,17 +311,17 @@ for (cancer.type in cancer_types){
   DCres.all <- DCres.all[, order(colnames(DCres.all))]
   DCres.cor <- cor(DCres.all)
   ucells <- unique(gsub("_.*$", "", rownames(DCres.cor)))
-  for (cell in ucells) {
-    
-    i <- which(gsub("_.*$", "", rownames(DCres.cor)) == cell )
-    if (length(i) == 1) next
-    cat("\n")
-    res <- DCres.cor[i,i]
-    res <- res[-grep("_", rownames(res)),]
-    res <- sort(res[grep("_", names(res))])
-    print(res)
-    
-  }
+  # for (cell in ucells) {
+  #   
+  #   i <- which(gsub("_.*$", "", rownames(DCres.cor)) == cell )
+  #   if (length(i) == 1) next
+  #   cat("\n")
+  #   res <- DCres.cor[i,i]
+  #   res <- res[-grep("_", rownames(res)),]
+  #   res <- sort(res[grep("_", names(res))])
+  #   print(res)
+  #   
+  # }
   
   ## Plot correlation
   # pdf(paste0("./input_data_model1/tmp/", cancer.type, "_TMEmod_cell_fractions_corr.pdf"))
@@ -342,10 +335,23 @@ for (cancer.type in cancer_types){
   # Visualize the distributions of the cell type fractions
   # boxplot(CellFrac.norm, las = 2)
   
-  # Write .RData object into .csv file
-  write.csv(CellFrac.norm, file = paste0("../input_data_model1/updated_version/", cancer.type, "_TMEmod_cell_fractions.csv"))
 
-}
+  # to .csv file
+  write.csv(CellFrac.norm,
+            file= file.path(path_to_output, cancer.type, "TMEmod_cell_fractions.csv"), 
+            row.names = TRUE)
+  
+  return(DCres.cor)
+})
+
+```
+
+> Pan-cancer comparison of in silico deconvolution cell-type quantifications
+
+- We calculate the median correlation of each cell-type estimated quantification across cancer types
+
+```{r}
+
 
 ```
 
@@ -375,7 +381,8 @@ lapply(cancer_types, function(XX){
   immuneresponse <- data.frame(IR=apply(DataTasks_z, 1, median))
   
   write.csv(immuneresponse,
-            file = paste0("../../data/immuneresponse_tcga/immuneresponse_score_", XX, ".csv"), row.names = TRUE)
+            file= file.path(path_to_output, cancer.type, "immuneresponse_score.csv"), 
+            row.names = TRUE)
 })
 
 
