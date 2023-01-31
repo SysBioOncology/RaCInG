@@ -408,7 +408,7 @@ retrieve a customized set of intercellular interactions from OmniPath
 (<code>OmniPathR</code> R package version 3.7.0)</p>
 </blockquote>
 <ul>
-<li>This set included expert-curated (in the context of CCC)
+<li>This set includedg expert-curated (in the context of CCC)
 interactions from “CellPhoneDB”, “CellChatDB”, “ICELLNET”,
 “connectomeDB2020”, “CellTalkDB” and “Cellinker” resources.</li>
 </ul>
@@ -811,7 +811,7 @@ celltype_L[, &quot;IFNG&quot;]
 #&gt;      0      0      0      0      0      1      0      1      0
 
 # export table to excel file
-#write.csv(celltype_L, file = &quot;../input_data_model1/celltype_ligand.csv&quot;)</code></pre>
+#write.csv(celltype_L, file= file.path(path_to_output, &quot;celltype_ligand.csv&quot;), row.names = TRUE)</code></pre>
 </div>
 <div id="receptors-vs-cell-types-compatibility" class="section level3">
 <h3>Receptors vs cell-types compatibility</h3>
@@ -843,7 +843,7 @@ celltype_R[, &quot;IFNGR2&quot;]
 #&gt;      1      1      1      1      1      1      1      1      1
 
 # export table to excel file
-#write.csv(celltype_R, file = &quot;../input_data_model1/celltype_receptor.csv&quot;)</code></pre>
+#write.csv(celltype_R, file= file.path(path_to_output, &quot;celltype_receptor.csv&quot;), row.names = TRUE)</code></pre>
 </div>
 </div>
 

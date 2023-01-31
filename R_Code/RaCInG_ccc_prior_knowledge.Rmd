@@ -80,8 +80,9 @@ cor.mtest <- function(mat, ...) {
 # Change default settings to fit plots
 knitr::opts_chunk$set(fig.height = 9, fig.width = 9)
 
-# utils
-#source("./utils/utils_lrpairs_curated.R")
+## path to output folder
+path_to_output <- ""
+
 ```
 
 ## Knowledge extracted from literature 
@@ -152,7 +153,7 @@ intercell_knowledge <- curated_omni
 ```{r, echo=FALSE}
 
 # Cell type fractions obtained for TCGA SKCM dataset
-celltype_quantification <- read.csv(file = "../input_data_model1/SKCM_TMEmod_cell_fractions.csv",
+celltype_quantification <- read.csv(file = "../../../data/random_graphs_input/tcga/skcm/SKCM_TMEmod_cell_fractions.csv",
                                     row.names = 1)
 
 # Cell type names
@@ -189,7 +190,7 @@ boxplot.matrix(as.matrix(celltype_quantification), las = 2)
 ```{r, echo = FALSE}
 
 # Read ramilowski gene expression data
-Expr_genes <- read.delim(file = "./utils/ExpressionGenes.txt", row.names = 1)
+Expr_genes <- read.delim(file = "../../../data/ramilowski/ExpressionGenes.txt", row.names = 1)
 
 # Visualize the data
 Expr_genes[1:3, 1:5]
@@ -269,7 +270,7 @@ rownames(Expr_genes)[which(rownames(Expr_genes) %in% "WISP1")] <- "CCN4"
 
 ```{r, echo=FALSE}
 # add pan-tumor cell type from CCLE (already filtered for >= 10TPM)
-Expr_genes_tumor <- read.table("./utils/CCLE_PanCancer.txt")
+Expr_genes_tumor <- read.table("../../../data/ccle/CCLE_PanCancer.txt")
 
 cat("Number of activated genes in tumor cell type: ", nrow(Expr_genes_tumor))
 
@@ -498,18 +499,15 @@ ggplot(connections_cell_type ,aes(x = Sender, y = Receiver, fill = n_connections
 # Save ccc tables: 
 
 ## Original 
-# write.csv(ccc_table, 
-#           file = "../../../data/output_curated_ccc_tables/updated_expressed_ccc_table_omnipath_ramilowski_quantiseq.csv")
+#write.csv(ccc_table, file= file.path(path_to_output, "ccc_table.csv"), row.names = TRUE)
 
 ## With >=10 TPM threshold
-# write.csv(ccc_table_filtered,
-#           file = "../../../data/output_curated_ccc_tables/updated_expressed_ccc_table_omnipath_ramilowski_quantiseq_filtered_LR_10tpm.csv")
+#write.csv(ccc_table_filtered, file= file.path(path_to_output, "expressed_ccc_table.csv"), row.names = TRUE)
 
-# Save list of LR interactions
+
+# Save list of LR interactions:
 df_LRpairs <- data.frame(LRpairs=unique(paste0(ccc_table_filtered$Ligand, "_", ccc_table_filtered$Receptor)))
-
-# export LRpairs to excel file
-write.csv(df_LRpairs, file = "../input_data_model1/LRpairs.csv")
+#write.csv(df_LRpairs, file= file.path(path_to_output, "LRpairs.csv"), row.names = TRUE)
 
 ```
 
@@ -541,7 +539,7 @@ cat("Ligand-celltype compatibility: IFNG \n")
 celltype_L[, "IFNG"]
 
 # export table to excel file
-#write.csv(celltype_L, file = "../input_data_model1/celltype_ligand.csv")
+#write.csv(celltype_L, file= file.path(path_to_output, "celltype_ligand.csv"), row.names = TRUE)
 
 ```
 
@@ -570,6 +568,6 @@ cat("Receptor-celltype compatibility: IFNGR2 \n")
 celltype_R[, "IFNGR2"]
 
 # export table to excel file
-#write.csv(celltype_R, file = "../input_data_model1/celltype_receptor.csv")
+#write.csv(celltype_R, file= file.path(path_to_output, "celltype_receptor.csv"), row.names = TRUE)
 
 ```
