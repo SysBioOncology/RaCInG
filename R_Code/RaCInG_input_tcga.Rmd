@@ -35,7 +35,7 @@ knitr::opts_chunk$set(fig.height = 9, fig.width = 9)
 cancer_types <- c("BLCA", "CRC", "NSCLC", "KIRC", "SKCM", "STAD") 
 
 path_to_TPMfolder <- "../../../../Mechanistic_signatures_project/data/TCGA_tpm_files/"
-path_to_CCCtable <- "../Data/CCC_PKN/expressed_ccc_table_omnipath_ramilowski_quantiseq_filtered_LR_10tpm.csv"
+path_to_CCCtable <- "../Data/CCC_PKN/expressed_ccc_table.csv"
 
 ## path to output folder
 path_to_output <- ""

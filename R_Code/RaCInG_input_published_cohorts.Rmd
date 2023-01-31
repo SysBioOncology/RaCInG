@@ -38,7 +38,7 @@ knitr::opts_chunk$set(fig.height = 9, fig.width = 9)
 folderValidation <- "/Users/Oscar/ownCloud2/SystemsImmunoOncology/Mechanistic_signatures_project/data/Validation/prediction_files"
 
 ## path to curated cell-cell communication table
-path_to_CCCtable <- "../Data/CCC_PKN/expressed_ccc_table_omnipath_ramilowski_quantiseq_filtered_LR_10tpm.csv"
+path_to_CCCtable <- "../Data/CCC_PKN/expressed_ccc_table.csv"
 
 ## path to output folder
 path_to_output <- ""

@@ -40,6 +40,7 @@ We used R version 4.2.0 and the following R packages were used:
 - ConsensusTME 0.0.1.9000
 - corrplot 0.92
 - dplyr 1.0.10
+- ggplot2 3.4.0
 
 ### Python-code
 The code was developed and run in Anaconda on Python 3.8.11. The following Python packages are used:
@@ -83,7 +84,7 @@ We explain the basic functionalities of all Python files. Please consult the dem
 
 ## Data
 
-- **expressed_ccc_table_omnipath_ramilowski_quantiseq_filtered_LR_10tpm.csv**: .csv file containg the extracted prior knowledge of cell-cell communication (returned as output by **RaCInG_ccc_prior_knowledge.Rmd**).
+- **expressed_ccc_table.csv**: .csv file containg the extracted prior knowledge of cell-cell communication (returned as output by **RaCInG_ccc_prior_knowledge.Rmd**).
 
 ## Additional Folders
 The folder *Envs* contains the environments used when executing RaCInG to obtain the results in the paper. The folder *Manuals* contains a more detailed description of the input matrices used in RaCInG, and the outputs that the graph generation pipeline creates. 
