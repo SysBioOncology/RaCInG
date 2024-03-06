@@ -377,5 +377,5 @@ def createPicture(weighttype, cancer, c1, c2, c3, g1, g2, feature, thresh, folde
 
 if __name__ == "__main__":
     #Small test with actual input data
-    createPicture("min", "kim", "B", "CD8+ T", "Grr", "R", "NR", "Response", 20, "Example input", triangle = False)
+    createPicture("min", "STAD", "B", "CD8+ T", "Not used", "IE", "F", "MFP", 20, "Example input", triangle = False)
     

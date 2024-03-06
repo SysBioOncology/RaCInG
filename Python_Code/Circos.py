@@ -6,6 +6,7 @@ Created on Thu Nov 10 08:00:34 2022
 """
 import numpy as np
 from RaCInG_input_generation import get_patient_names
+from RaCInG_input_generation import generateInput
 import pandas as pd
 import csv
 
@@ -148,13 +149,14 @@ def createCircosTxt(cancer_type, group, lam, filename, folder = "RaCInG_Input_Da
 
     """
     load = np.load("kernel_{}.npz".format(cancer_type))
-    out = load["prob"]
+    out = load["kernel"]
     sizeOut = out.shape[2]
-    out[out == 0] = 0
-    cells = load["names"]
-    #load2 = np.load("kernel_norm_{}.npz".format(cancer_type))
-    #outN = load2["prob"]
-    #outN[outN == 0] = 1
+    _, _, Dcell, _, cells, _, _, _ = generateInput("min", cancer_type)
+    for t, _ in enumerate(cells):
+        for s, _ in enumerate(cells):
+            out[t, s, :] = out[t, s, :] * Dcell[:, t] * Dcell[:, s]
+            
+
     fold = (out) * lam
     if not feature:
         names = get_patient_names(cancer_type, folder)
@@ -166,16 +168,4 @@ def createCircosTxt(cancer_type, group, lam, filename, folder = "RaCInG_Input_Da
     return
 
 if __name__ == "__main__":
-    df = pd.read_csv("SKCM_min_weight_W_bundle.csv")
-    dataExact = pd.read_csv("SKCM_min_weight_W_bundle.csv").values[:,1:].astype(float)
-    dataApprox = pd.read_csv("SKCM_W_10000_cells_15_deg_data_bundle.csv").values[:,1:].astype(float)
-    
-    error = (dataExact - dataApprox) / dataExact
-    error = error[dataApprox != 1]
-    print(len(error))
-    error = error[:]
-    
-    import seaborn as sns
-    
-    sns.histplot(error[np.abs(error) < 1])
-    print(sum(np.abs(error) < 1))
+    createCircosTxt("STAD", "IE", 1, "Circos_STAD_IE.txt", folder = "Example input", feature = "MFP")

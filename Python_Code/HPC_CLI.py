@@ -4,7 +4,7 @@ Command line interface to run the code in an HPC environment
 """
 
 import argparse
-from execute_sim import runSimOne as run
+from Monte_Carlo_Method import runSimOne as run
 
 #-------------------------------
 #     Command Line Interface    

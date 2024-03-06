@@ -127,6 +127,32 @@ def createSlurm(cancer, weight, feature, N, itNo, noPat, av, norm):
                      "conda deactivate\n", "echo["])
     return
 
+
+def poiBPFunc(x, M, sens):
+    """
+    Utility funciton that seeks to find the survival probability of a Poisson
+    Branching process by searching for its root. This funciton outputs 
+    the value of the survival function at the current estimate. Used in
+    analytical computation of the GSCC.
+
+    Parameters
+    ----------
+    x : np.array() with float entries;
+        vector with current GSCC estimate.
+    M : np.array() with float entries;
+        Matrix with average sizes of each group of the branching process.
+    sens : int;
+        Size of x.
+
+    Returns
+    -------
+    np.array() vector of current estimate
+
+    """
+    inter = np.tile(x, (sens, 1))
+    result = inter * M
+    return np.ones(sens) - x - np.exp(-np.sum(result, axis = 1))
+
 if __name__ == "__main__":
     #Test Adj matrix construciton
     N = 5

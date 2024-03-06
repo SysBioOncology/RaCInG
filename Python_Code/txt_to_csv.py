@@ -79,49 +79,139 @@ def Triangle_Prop_Read(filename):
     
     return triangle_type[0], triangle_data_a, triangle_data_s, triangle_raw_count, weight_type, cancer_type, int(N), int(itNo), float(av)
 
-def Direct_Comm_Limit_Read(filename):
+def Direct_Comm_Read(filename):
     """
-    Reads in theoretical limits from a raw .txt file.
+    Reads the raw data (about direct communication) from .txt files.
 
     Parameters
     ----------
     filename : str;
         Name of the file.
 
-    Returns
-    -------
-    weight : str;
-        Weight type used to compute the interaction distribution.
-    cancer : str;
-        (Abbreviation of) cancer type.
-    NoPat : int;
-        Number of patients in the dataset.
-    direct_comm : np.array() with float entries;
-        3D array where each matrix along the second axis is the direct communication
-        between cell types in one patient.
+      Returns
+      -------
+      triangle_type : str;
+          Triangle type read (e.g. D)
+      triangle_data_a : np.array() with float entries;
+          Average value of each subfeature.
+      triangle_data_s : np.array() with float entries;
+          Std of all subfeatures.
+      triangle_raw_count : np.array() with float entries;
+          For each patient the full count of the triangle_type. The rows are
+          patients, the first column is the average count, and the second column
+          is the std.
+      weight_type : str;
+          Type of weight used.
+      cancer_type : str;
+          Identifier for the type of dataset used.
+      N : int;
+          Number of cells used per graph.
+      itNo : int;
+          Number of graphs generated before extracting the features
+      av : float;
+          Average degree used for each graph.
     """
     
     with open(filename) as f:
         reader = csv.reader(f)
-        comm_type = next(reader)
-        weight, cancer, NoPat = next(reader)
+        triangle_type = next(reader) #"NA" if the line is missing
+        cancer_type, weight_type, NoPat, N, itNo, av = next(reader)
         
-        direct_comm = np.zeros((9,9, int(NoPat)))
+        triangle_data_a = np.zeros((9, 9, int(NoPat)))
+        triangle_data_s = np.zeros((9, 9, int(NoPat)))
+        triangle_raw_count = np.zeros((int(NoPat), 2))
         
         p = next(reader)
         
         while p:
-            pat = p[0]
+            p = p[0]
             next(reader)
+            _, a_raw, s_raw = next(reader)
             
+            triangle_raw_count[int(p), 0] = float(a_raw)
+            triangle_raw_count[int(p), 1] = float(s_raw)
+            
+            next(reader)
             for _ in range(9):
                 for _ in range(9):
                     i, j, a = next(reader)
-                    direct_comm[int(i), int(j), int(pat)] = float(a)
-                    
+                    triangle_data_a[int(i), int(j), int(p)] = float(a)
+                        
+            next(reader)
+            for _ in range(9):
+                for _ in range(9):
+                    i, j, a = next(reader)
+                    triangle_data_s[int(i), int(j), int(p)] = float(a)
+                        
             p = next(reader)
         
-    return weight, cancer, int(NoPat), direct_comm
+    return triangle_type[0], triangle_data_a, triangle_data_s, triangle_raw_count, weight_type, cancer_type, int(N), int(itNo), float(av)
+
+def GSCC_Read(filename):
+    """
+    Reads the raw data (about direct communication) from .txt files.
+
+    Parameters
+    ----------
+    filename : str;
+        Name of the file.
+
+      Returns
+      -------
+      triangle_type : str;
+          Triangle type read (e.g. D)
+      triangle_data_a : np.array() with float entries;
+          Average value of each subfeature.
+      triangle_data_s : np.array() with float entries;
+          Std of all subfeatures.
+      triangle_raw_count : np.array() with float entries;
+          For each patient the full count of the triangle_type. The rows are
+          patients, the first column is the average count, and the second column
+          is the std.
+      weight_type : str;
+          Type of weight used.
+      cancer_type : str;
+          Identifier for the type of dataset used.
+      N : int;
+          Number of cells used per graph.
+      itNo : int;
+          Number of graphs generated before extracting the features
+      av : float;
+          Average degree used for each graph.
+    """
+    
+    with open(filename) as f:
+        reader = csv.reader(f)
+        triangle_type = next(reader) #"NA" if the line is missing
+        cancer_type, weight_type, NoPat, N, itNo, av = next(reader)
+        
+        triangle_data_a = np.zeros((9, int(NoPat)))
+        triangle_data_s = np.zeros((9, int(NoPat)))
+        triangle_raw_count = np.zeros((int(NoPat), 2))
+        
+        p = next(reader)
+        
+        while p:
+            p = p[0]
+            next(reader)
+            _, a_raw, s_raw = next(reader)
+            
+            triangle_raw_count[int(p), 0] = float(a_raw)
+            triangle_raw_count[int(p), 1] = float(s_raw)
+            
+            next(reader)
+            for _ in range(9):
+                i, a = next(reader)
+                triangle_data_a[int(i), int(p)] = float(a)
+                        
+            next(reader)
+            for _ in range(9):
+                i, a = next(reader)
+                triangle_data_s[int(i), int(p)] = float(a)
+                        
+            p = next(reader)
+        
+    return triangle_type[0], triangle_data_a, triangle_data_s, triangle_raw_count, weight_type, cancer_type, int(N), int(itNo), float(av)
 
 def Generate_normalised_count_csv(cancer_type, weight_type, triangle_types, average = 15, noCells = 10000, folder = "Input_data_RaCInG", remove_direction = True):
     """
@@ -290,102 +380,10 @@ def Generate_normalised_count_csv(cancer_type, weight_type, triangle_types, aver
     
     return df
 
-def Generate_direct_communication_csv(cancer_type, weight_type, folder = "Input_data_RaCInG", remove_direction = True):
-    """
-    Generates the .csv file corresponding to the raw data of (exact) direct
-    communication.
-
-    Parameters
-    ----------
-    cancer_type : str;
-        Name of cancer type.
-    weight_type : str;
-        Weights used when constructing interaction distribution.
-    remove_direction : bool; (Optional)
-        Do you want to remove directionality in the features. The default is True.
-
-    Returns
-    -------
-    df : Pandas data frame
-        Data frame that has also been saves as .csv file.
-    """
-    CellLig,CellRec,Dtypes,Dconn,celltypes,lig,rec,signs = gi(weight_type, cancer_type, folder = folder)
-    celltypes[celltypes == "CD8+ T"] = "CD8"
-    
-    _, _, _, comm = Direct_Comm_Limit_Read(r"{}_D.out".format(cancer_type))
-    _, _, Pat, commN = Direct_Comm_Limit_Read(r"{}_D_norm.out".format(cancer_type))
-    
-    
-    if np.any(np.sum(comm, axis = (0,1)) < 0.99):
-        print("Something is wrong")
-        print(np.sum(comm, axis = (0,1)))
-    
-    
-    if remove_direction:
-        non_unif_data = {}
-        column_names = []
-        for i in range(9):
-            for j in range(9):
-                    non_unif_data["{}_{}".format(celltypes[i], celltypes[j])] = comm[i,j,:]
-                    column_names.append("{}_{}".format(celltypes[i], celltypes[j]))
-        df = pd.DataFrame(data = non_unif_data)
-        
-        unif_data = {}
-        column_names = []
-        for i in range(9):
-            for j in range(9):
-                for k in range(9):
-                    unif_data["{}_{}".format(celltypes[i], celltypes[j])] = commN[i,j,:]
-                    column_names.append("{}_{}".format(celltypes[i], celltypes[j]))
-        dfN = pd.DataFrame(data = unif_data)
-        
-        new = pd.DataFrame(index = df.index)
-        newN = pd.DataFrame(index = dfN.index)
-        
-        for col in df.columns:
-            new_label = '_'.join(np.sort(col.split('_')))
-            
-            try:
-                new[new_label] += df[col]
-                newN[new_label] += dfN[col]
-            except:
-                new[new_label] = df[col]
-                newN[new_label] = dfN[col]
-                
-        comm = new.values
-        commN = newN.values
-        
-        #Since we are working with limiting values, a zero at one is a zero at the
-        #other. Their ratio should be one.
-        comm[comm == 0] = 1
-        commN[commN == 0] = 1
-        Norm = comm/commN
-        patients = pn(cancer_type, folder = folder)
-        
-        df = pd.DataFrame(data = Norm, index = patients, columns = new.columns)
-        df.to_csv("{}_{}_weight_direct_communication_bundle.csv".format(cancer_type, weight_type))
-        return df
-        
-    
-    #Since we are working with limiting values, a zero at one is a zero at the
-    #other. Their ratio should be one.
-    comm[comm == 0] = 1
-    commN[commN == 0] = 1
-    Norm = comm/commN
-    patients = pn(cancer_type, folder = folder)
-    
-
-    Normdata = {}
-    column_names = []
-    for i in range(9):
-        for j in range(9):
-            Normdata["{}_{}".format(celltypes[i], celltypes[j])] = Norm[i, j, :]
-            column_names.append("{}_{}".format(celltypes[i], celltypes[j]))
-            
-    df = pd.DataFrame(data = Normdata)
-    df.index = patients
-    
-    df.to_csv("{}_{}_weight_direct_communication.csv".format(cancer_type, weight_type))
-    
-    return df
+if __name__ == "__main__":
+    # Based on test output Monte_Carlo_Method file
+    a, b, c, d, e, f, N, itNo, av = Direct_Comm_Read("SKCM_D_20.out" )
+    a, b, c, d, e, f, N, itNo, av = GSCC_Read("SKCM_GSCC_2.out" )
+    a, b, c, d, e, f, N, itNo, av = Triangle_Prop_Read("SKCM_W_20.out" )    
+    df = Generate_normalised_count_csv("SKCM", "min", ["W"], average = 20, noCells = 500, folder = "Example input", remove_direction = True)
 

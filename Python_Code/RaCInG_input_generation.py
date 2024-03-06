@@ -206,7 +206,6 @@ def createCellTypeDistr(cells, filename):
     nonNorm = np.array(Dtypes)
     normal = np.sum(nonNorm, axis = 1)
     normalized = nonNorm / normal[:,None]
-    
     celltypes, perm = sortPermute(celltypes)
     Dtypes = normalized[:, perm]
     
@@ -342,7 +341,7 @@ def Read_Lig_Rec_Interaction(filename):
     
     return np.array(sign_matrix, dtype = int), ligand_names, receptor_names
 
-def generateInput(weight_type, cancer_name, read_signs = False, folder = r"Input_data_RaCInG"):
+def generateInput(weight_type, cancer_name, read_signs = False, folder = r"Example input"):
     """
     Read in all input data for model 1 from the provided .csv files.
     
@@ -412,7 +411,7 @@ def generateInput(weight_type, cancer_name, read_signs = False, folder = r"Input
     
     return CellLigList, CellRecList, Dtypes, DconnectionTensor, celltypes, ligands, receptors, Sign_matrix
 
-def get_patient_names(cancer_type, folder = r"input_data_RaCInG"):
+def get_patient_names(cancer_type, folder = r"Example input"):
     """
     Gets the name tags of the patient in the input data.
     
@@ -439,8 +438,8 @@ def get_patient_names(cancer_type, folder = r"input_data_RaCInG"):
 
 if __name__ == "__main__":
     #Little script to test reading input
-    a, b, c, d, e, lig1, rec1, _ = generateInput("min", "NSCLC")
-    #names = get_patient_names("STAD")
+    a, b, c, d, e, lig1, rec1, _ = generateInput("min", "SKCMsmall")
+    names = get_patient_names("SKCM")
     
     
     
