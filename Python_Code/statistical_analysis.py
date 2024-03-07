@@ -9,12 +9,14 @@ import pandas as pd
 import numpy as np
 import scipy.stats as stat
 import csv
+from RaCInG_input_generation import get_patient_names as gp
 from matplotlib import cm
 from matplotlib import pyplot as plt
 from matplotlib.offsetbox import AnchoredText
 from adjustText import adjust_text
 import math
 from matplotlib import colors
+from Kernel_Method import getGSCCAnalytically
 #-------------------------
 #Preprocessing functions
 #-------------------------
@@ -43,6 +45,140 @@ def remove_celltype(data, celltype):
                 data[cancer].drop(col, inplace = True, axis = 1)
                 
     return data
+
+
+def readAllDataExact(cancer_types, investigation_types, datatype, remove_celltypes = [], weight = "min", bundle = True):
+    """
+    Reads in data from .csv files generated through the Kernel Method.
+    
+    Parameters
+    ----------
+    cancer_types : list with str entries;
+        Identifiers of the base group of cancer types.
+    investigation_types : list with str entries;
+        Identifiers of the cancer types that will be compared with the cancer_type list.
+    datatype : list with str entries;
+        The names of the datatypes (e.g., wedge; W).
+    remove_celltypes : list with str entries; (optional)
+        The celltypes to remove from the analysis. The default is [].
+    weight : str; (optional)
+        Indicator of the weight type used when generating input data. The default is "min".
+    bundle : bool; (optional)
+        Indicates if directionality was removed or not. The default is True.
+
+    Raises
+    ------
+    NameError
+        If a certain cancer type does not exist, a NameError for the file is
+        raised.
+
+    Returns
+    -------
+    data : dict with pd dataframes;
+        A dictionary with a pandas dataframe per entry.
+    communication_types : list with str entries;
+        The list of features we consider in our analysis (e.g. Dir_CD8_M).
+    Nofeatures_global : int;
+        Number of features we consider in our analysis. Usefull later for
+        correction.
+    """
+    data = {}
+    #Read in all cancer data for pan cancer analysis 
+    for cancer in cancer_types:
+        try:
+            data[cancer] = dataReadExact(datatype, cancer, weight, bundle)
+            b = [a.replace(".", "-") for a in data[cancer].iloc[:,0]]
+            data[cancer].iloc[:,0] = b
+    
+        except:
+            raise NameError("Data from cancer type {} does not exist...".format(cancer))
+            
+    #Add data for the investigation cancer types
+    for cancer in investigation_types:
+        if cancer not in cancer_types:
+            try:
+                data[cancer] = dataReadExact(datatype, cancer,weight, bundle)
+                b = [a.replace(".", "-") for a in data[cancer].iloc[:,0]]
+                data[cancer].iloc[:,0] = b
+            except:
+                raise NameError("Data from cancer type {} does not exist...".format(cancer))
+         
+        #Remove cell types that we do not want to consider in the investigation
+    for cell_type in remove_celltypes:
+        data = remove_celltype(data, cell_type)
+        
+    communication_types = data[cancer].columns[1:] #Array used later to reference the specific communication features
+       
+    #Print the number of features in each cancer type
+    Nofeatures = {}
+    for cancer in data.keys():
+        print("We have {} unique features in {}.".format(len(data[cancer].columns)-1, cancer))
+        Nofeatures[cancer] = len(data[cancer].columns)-1
+    Nofeatures_global = Nofeatures[cancer] #Will later be referenced if we need to know the number of features in the analysis
+    return data, communication_types, Nofeatures_global
+
+def dataReadExact(datatypes, cancer, weight = "min", bundle = True):
+    """
+    Read in data from one cancer type out a .csv file
+    generated from the Kernel method.
+
+    Parameters
+    ----------
+    datatypes : list of str;
+        Different types of data considered in the analysis (e.g. wedges; W).
+    cancer : str;
+        Inicator of cancer type to read in.
+    weight : str; (optional)
+        Indicator of the weight type used when generating input data.
+    bundle : bool; (optional)
+        Indicates if directionality was removed or not.
+
+    Returns
+    -------
+    frame : Pandas data frame;
+        The data from the csv file in a pandas dataframe.
+    """
+    
+    if len(datatypes) == 1:
+        #Get name of data file
+        if datatypes[0] == "Dir":
+            if bundle:
+                data_name = "{}_{}_weight_{}_bundle_norm.csv".format(cancer, weight, datatypes[0])
+            else:
+                data_name = "{}_{}_weight_{}_norm.csv".format(cancer, weight, datatypes[0])
+        else:
+            if bundle:
+                data_name = "{}_{}_weight_{}_bundle_norm.csv".format(cancer, weight, datatypes[0]) #Name of file with network properties per patient
+            else:
+                data_name = "{}_{}_weight_{}_norm.csv".format(cancer, weight, datatypes[0])
+        return pd.read_csv(data_name)
+    else:
+        for index, t in enumerate(datatypes):
+            #Get name of data file
+            if t == "Dir":
+                if bundle:
+                    data_name = "{}_{}_weight_{}_bundle_norm.csv".format(cancer, weight, t)
+                else:
+                    data_name = "{}_{}_weight_{}_norm.csv".format(cancer, weight, t)
+            else:
+                if bundle:
+                    data_name = "{}_{}_weight_{}_bundle_norm.csv".format(cancer, weight, t) #Name of file with network properties per patient
+                else:
+                    data_name = "{}_{}_weight_{}_norm.csv".format(cancer, weight, t)
+            if index == 0:
+                data = pd.read_csv(data_name)
+                vals = data.values
+                cols = list(data.columns)
+                columns = cols #[t + "_" + col for col in cols]
+            else:
+                data = pd.read_csv(data_name)
+                val = data.values[:,1:]
+                vals = np.hstack((vals, val))
+                cols = list(data.columns[1:])
+                columns.extend(cols)#[t + "_" + col for col in cols])
+      
+        frame = pd.DataFrame(data = vals, columns = columns)
+        return frame
 
 def data_read(datatypes, cancer, noCells = 10000, average = 15, weight = "min", bundle = True):
     """
@@ -132,8 +268,13 @@ def Find_Patient_Subtype_Bagaev(data):
     #and first column as indices
     repository_data = pd.read_excel("Bagaev_mmc6.xlsx", sheet_name = 1, header = 1, index_col = 0)
     #Transform patient names, because "-01" does not appear in our dataset
-    b = [a.replace(".", "-") for a in data.iloc[:,0]]
-    patient_names = [a[:12] for a in b]
+    try:
+        b = [a.replace(".", "-") for a in data.iloc[:,0]]
+        patient_names = [a[:12] for a in b]
+    except:
+
+        b = gp(data) 
+        patient_names = [a[:12] for a in b]
     
     #Store attribute data in patient_subtypes. Try to locate the data and just
     #write in "NA" if this data does not exist.
@@ -148,7 +289,7 @@ def Find_Patient_Subtype_Bagaev(data):
     
     return patient_subtypes
 
-def Metadata_csv_read_in(metadata_name, feature, data = "NA"):
+def Metadata_csv_read_in(metadata_name, feature, data = [], names = 0):
     """
     Extracts a given feature from a given csv file.
 
@@ -159,7 +300,9 @@ def Metadata_csv_read_in(metadata_name, feature, data = "NA"):
     feature : str;
         Name of the feature you seek to extract (e.g. MFP or R).
     data : pd dataframe;
-           The dataframe with the output from RaCInG. (optional) 
+           The dataframe with the output from RaCInG. (optional)
+    names : list of str;
+           List with patient names. (optional)
     Returns
     -------
     metadata.values : np.array();
@@ -177,12 +320,14 @@ def Metadata_csv_read_in(metadata_name, feature, data = "NA"):
     
     #Transforming raw data into Data Frame
     metadata = pd.DataFrame(data = rows, columns = header)
-    try:
+    if len(data):
         #Transform patient names, because "-01" does not appear in our dataset
         b = [a.replace(".", "-") for a in data.iloc[:,0]]
         patient_names = b
         metas = metadata[feature][np.where(np.isin(metadata["Patient"], np.array(patient_names)))[0]]
-    except:
+    elif names:
+        metas = metadata[feature][np.where(np.isin(metadata["Patient"], np.array(names)))[0]]
+    else:
         metas = metadata[feature]
     return metas.values
 
@@ -294,7 +439,7 @@ def addMetadata(data, cancer_types, investigation_types, feature_pan, feature_in
     
     
         try:
-            meta_data = Metadata_csv_read_in("metadata_{}.csv".format(cancer), feature_pan, data[cancer])
+            meta_data = Metadata_csv_read_in("metadata_{}.csv".format(cancer), feature_pan, data = data[cancer])
             data[cancer][feature_pan] = meta_data
         except:
             print("Metadatafile not found for {}".format(cancer))
@@ -310,7 +455,7 @@ def addMetadata(data, cancer_types, investigation_types, feature_pan, feature_in
     
     
         try:
-            meta_data = Metadata_csv_read_in("metadata_{}.csv".format(cancer), feature_inv, data[cancer])
+            meta_data = Metadata_csv_read_in("metadata_{}.csv".format(cancer), feature_inv, data = data[cancer])
             data[cancer][feature_inv] = meta_data
         except:
             print("Metadatafile not found for {}".format(cancer))
@@ -395,19 +540,41 @@ def computeCorrelation(data, thresh = 20, save = False):
     #Compute spearman rho correlation between immune response score and 
     #feature values for each feature per cancer type
     correlations = {}
+    
     for cancer in data.keys():
         correlations[cancer] = [] #Records spear rho corr (col 0) and p-value (col 1)
         ir_score = IR[cancer]
+        refCancer = cancer
     
         for col in data[cancer].columns[1:-1]:
                 feat_val = data[cancer].loc[:, col].values.astype(float)
                 rho, _ = stat.spearmanr(feat_val, ir_score)
                 correlations[cancer].append(rho)
+    
+    correlations["pan"] = []
+    for col in data[refCancer].columns[1:-1]:
 
+        pandata = [] #Sample all data from all cancer types
+        irScores = [] #corresponding IR scores
+        
+        for cancer in data.keys():
+            pandata.extend(data[cancer].loc[:, col].values.astype(float))
+            irScores.extend(IR[cancer])
+            
+        rho, _ = stat.spearmanr(pandata, irScores)
+        correlations["pan"].append(rho)
+    
+    keys = list(data.keys())
+    keys.append("pan")
     #Create heatmatps with largest correlations
-    for cancer in data.keys():
-        labels = data[cancer].columns[1:-1]
-        highlights = np.argsort(np.abs(correlations[cancer]))[-thresh:]
+    for cancer in keys:
+        try:
+            labels = data[cancer].columns[1:-1]
+        except:
+            labels = data[keys[0]].columns[1:-1]
+        highlightsBig = np.argsort(correlations[cancer])[-(round(thresh/2)):]
+        highlightsSmall = np.argsort(-np.array(correlations[cancer]))[-(round(thresh/2)):]
+        highlights = np.append(highlightsBig, highlightsSmall)
         
         fig, ax = plt.subplots(1,1)
         
@@ -419,7 +586,11 @@ def computeCorrelation(data, thresh = 20, save = False):
         sorted_data = np.sort(best_corr)
         sorted_types = types[np.argsort(best_corr)]
         
-        empty_index = np.nonzero(sorted_data < 0)[0][-1]
+        try:
+            empty_index = np.nonzero(sorted_data < 0)[0][-1]
+        except:
+            empty_index = -1
+            
         colors_rainfall = np.array(['r'] * (thresh + 1))
         colors_rainfall[empty_index + 1 :] = 'g'
         
@@ -432,7 +603,7 @@ def computeCorrelation(data, thresh = 20, save = False):
         plt.xticks(rotation=90)
         
         if save:
-            plt.savefig("Correlation_IR_features_rainfall_{}.png".format(cancer), bbox_inches='tight')
+            plt.savefig("Correlation_IR_features_rainfall_{}.svg".format(cancer), bbox_inches='tight')
     return
 
 #------------------------
@@ -751,8 +922,6 @@ def volcanoPan(pan_cancer_p, pan_cancer_fold, pan_cancer_signif, Group_Names_pan
                 [ax.scatter(xdata[col], ydata[col], color = "blue") for col in important_features]
                 texts = [ax.text(xdata[col], ydata[col], communication_types[col]) for col in important_features]
                 adjust_text(texts, ax=ax, arrowprops=dict(arrowstyle = '-', color='black'))
-                at = AnchoredText("{} over {}".format(G1, G2), prop=dict(size=15), frameon=True, loc='lower left')
-                ax.add_artist(at)
                 counter += 1
     
         fig.suptitle("{} comparison {}".format(feature_pan, Pan_cancer_name))
@@ -788,8 +957,20 @@ def volcanoPan(pan_cancer_p, pan_cancer_fold, pan_cancer_signif, Group_Names_pan
                 [ax[counter].scatter(xdata[col], ydata[col], color = "blue") for col in important_features]
                 texts = [ax[counter].text(xdata[col], ydata[col], communication_types[col]) for col in important_features]
                 adjust_text(texts, ax=ax[counter], arrowprops=dict(arrowstyle = '-', color='black'))
-                at = AnchoredText("{} over {}".format(G1, G2), prop=dict(size=15), frameon=True, loc='lower left')
-                ax[counter].add_artist(at)
+                
+                #Change final labels axes
+                labels = [item.get_text() for item in ax[counter].get_xticklabels()]
+                labels[0] = labels[0]
+                labels[-1] = labels[-1]
+                ticks = ax[counter].get_xticks()
+                ax[counter].set_xticks(ticks)
+                ax[counter].set_xticklabels(labels, fontsize = "large")
+                labels = [item.get_text() for item in ax[counter].get_yticklabels()]
+                ticks = ax[counter].get_yticks()
+                ax[counter].set_yticks(ticks)
+                ax[counter].set_yticklabels(labels, fontsize = "large")
+                ax[counter].text(0.05, 0.05, "More expressed in {}".format(G2), transform=ax[counter].transAxes, ha="left", va="center", rotation=0, size=12, bbox=dict(boxstyle="larrow,pad=0.3", fc = "w", lw=2))
+                ax[counter].text(0.95, 0.05, "More expressed in {}".format(G1), transform=ax[counter].transAxes, ha="right", va="center", rotation=0, size=12, bbox=dict(boxstyle="rarrow,pad=0.3", fc = "w", lw=2))
                 counter += 1
     
         fig.suptitle("Volcano plots of features distinguishing {} groups in {} comparison".format(feature_pan, Pan_cancer_name))
@@ -861,17 +1042,23 @@ def volcanoInd(pvals, fold_change, signif, Group_Names_inv, communication_types,
                     [ax.scatter(xdata[col], ydata[col], color = "blue") for col in important_features]
                     texts = [ax.text(xdata[col], ydata[col], communication_types[col]) for col in important_features]
                     adjust_text(texts, ax=ax, arrowprops=dict(arrowstyle = '-', color='black'))
-                    #at = AnchoredText("{} vs. {}".format(G1, G2), prop=dict(size=15), frameon=True, loc='lower left')
-                    #ax.add_artist(at)
-                    counter += 1
+
                     
-                    #Set new tick labels
+                    #Change final labels axes
                     labels = [item.get_text() for item in ax.get_xticklabels()]
-                    labels[0] = labels[0] + "\n" + r"$\bf{}$".format(G2)
-                    labels[-1] = labels[-1] + "\n" + r"$\bf{}$".format(G1)
+                    labels[0] = labels[0]
+                    labels[-1] = labels[-1]
                     ticks = ax.get_xticks()
                     ax.set_xticks(ticks)
-                    ax.set_xticklabels(labels)
+                    ax.set_xticklabels(labels, fontsize = "large")
+                    labels = [item.get_text() for item in ax.get_yticklabels()]
+                    ticks = ax.get_yticks()
+                    ax.set_yticks(ticks)
+                    ax.set_yticklabels(labels, fontsize = "large")
+                    ax.text(0.05, 0.05, "More expressed in {}".format(G2), transform=ax.transAxes, ha="left", va="center", rotation=0, size=12, bbox=dict(boxstyle="larrow,pad=0.3", fc = "w", lw=2))
+                    ax.text(0.95, 0.05, "More expressed in {}".format(G1), transform=ax.transAxes, ha="right", va="center", rotation=0, size=12, bbox=dict(boxstyle="rarrow,pad=0.3", fc = "w", lw=2))
+                    counter += 1
+        
         else:
             fig, ax = plt.subplots(2, row_length)
             ax = ax.ravel()
@@ -894,17 +1081,22 @@ def volcanoInd(pvals, fold_change, signif, Group_Names_inv, communication_types,
                     [ax[counter].scatter(xdata[col], ydata[col], color = "blue") for col in important_features]
                     texts = [ax[counter].text(xdata[col], ydata[col], communication_types[col]) for col in important_features]
                     adjust_text(texts, ax=ax[counter], arrowprops=dict(arrowstyle = '-', color='black'))
-                    at = AnchoredText("{} over {}".format(G1, G2), prop=dict(size=15), frameon=True, loc='lower left')
-                    ax[counter].add_artist(at)
+
     
                     
                     #Change final labels axes
                     labels = [item.get_text() for item in ax[counter].get_xticklabels()]
-                    labels[0] = labels[0] + "\n" + r"$\bf{}$".format(G2)
-                    labels[-1] = labels[-1] + "\n" + r"$\bf{}$".format(G1)
+                    labels[0] = labels[0]
+                    labels[-1] = labels[-1]
                     ticks = ax[counter].get_xticks()
                     ax[counter].set_xticks(ticks)
-                    ax[counter].set_xticklabels(labels)
+                    ax[counter].set_xticklabels(labels, fontsize = "large")
+                    labels = [item.get_text() for item in ax[counter].get_yticklabels()]
+                    ticks = ax[counter].get_yticks()
+                    ax[counter].set_yticks(ticks)
+                    ax[counter].set_yticklabels(labels, fontsize = "large")
+                    ax[counter].text(0.05, 0.05, "More expressed in {}".format(G2), transform=ax[counter].transAxes, ha="left", va="center", rotation=0, size=12, bbox=dict(boxstyle="larrow,pad=0.3", fc = "w", lw=2))
+                    ax[counter].text(0.95, 0.05, "More expressed in {}".format(G1), transform=ax[counter].transAxes, ha="right", va="center", rotation=0, size=12, bbox=dict(boxstyle="rarrow,pad=0.3", fc = "w", lw=2))
                     counter += 1
     
         fig.suptitle("Volcano plots of features distinguishing {} groups in {}".format(feature_inv, cancer))
@@ -1086,7 +1278,7 @@ def plot_heatmap(ax, key, heatmap_data, heatmap_shapes, col_labels, row_labels, 
     """
     # Set cmap
     cmap = cm.get_cmap('coolwarm')    
-    xlabels = []
+
     # Iterate over types of plastic
     for i in range(heatmap_data[key].shape[1]):
         # Select data for the given type of cancer/comparison
@@ -1313,7 +1505,7 @@ def heatmap(big_diff_path, warning, pan_cancer_p, p_vals, pan_cancer_fold, fold_
             row_labels[key] = row_labels[key][av]
             
     PlotNo = len(row_labels.keys())
-    fig, ax = plt.subplots(PlotNo ,figsize=(5, 5))
+    fig, ax = plt.subplots(PlotNo ,figsize=(5, 20))
     
     try:
         for i, key in enumerate(row_labels.keys()):
@@ -1350,7 +1542,218 @@ def heatmap(big_diff_path, warning, pan_cancer_p, p_vals, pan_cancer_fold, fold_
         plt.savefig("{}_comparison_heatmap_{}_{}_bundle.png".format(investigation_types[0], feature_inv, datatype))
     return
 
+#-----------------------
+#   GSCC
+#-----------------------
+
+def contributionAnalysisGSCC(lmin, lmax, datasets, celltype, feat, norm, save):
+    """
+    Analyses contribution of celltype in GSCC for different patient groups over 
+    differet datasets for varying average degree in the graph using the kernel.
+    
+
+    Parameters
+    ----------
+    lmin : float;
+        Minimal average degree inputted.
+    lmax : float;
+        Maximal average degree inputted.
+    datasets : list of str;
+        List of datasets investigated.
+    celltype : str;
+        Name of cell type to be investigated.
+    feat : str;
+        Feature from meta-data to be compared.
+    norm : bool;
+        Normalize the output or not?
+    save : bool;
+        Save the output or not.
+
+    Returns
+    -------
+    None. A figure with the evolution of the GSCC for each group. Indicating the
+    average of the group, 1st quartile and 3rd quartile.
+
+    """
+    # Do the simulations
+    lamlist = np.arange(lmin, lmax, (lmax - lmin)/100)
+    GSCCtumor = {}
+    for dat in datasets:
+        GSCCdat = []
+        for la in lamlist:
+            df = getGSCCAnalytically(dat, lab = la, norm = norm)
+            GSCCdat.append(list(df[celltype].values))
+        GSCCtumor[dat] = GSCCdat
+    
+    # Add the patient subgroups
+    GSCCresponses = {}
+    for dat in datasets:
+        try:
+            names = gp(dat)
+            df = Metadata_csv_read_in("metadata_{}.csv".format(dat), "MFP", names = names)
+            GSCCresponses[dat] = list(df)
+        except:
+            subtypes = Find_Patient_Subtype_Bagaev(dat)
+            GSCCresponses[dat] = subtypes
+    
+    pan = True
+    if pan:
+        for i, dat in enumerate(datasets):
+            if i == 0:
+                numValues = GSCCtumor[dat]
+                typeValues = GSCCresponses[dat]
+            else:
+                numValues = np.append(numValues, GSCCtumor[dat], axis = 1)
+                typeValues = np.append(typeValues, GSCCresponses[dat])
+                
+        GSCCresponses = {}
+        GSCCtumor = {}
+        GSCCresponses["pan"] = typeValues
+        GSCCtumor["pan"] = numValues
+        datasets = ["pan"]
+        
+    
+    # Compare the differences
+    pVals = {}
+    signif = {}
+    groupvals = {}
+    for dat in datasets:
+        keylist = list(np.unique(GSCCresponses[dat]))
+        try:
+            keylist.remove("")
+        except:
+            pass
+
+        for key in keylist:
+            locs = np.where(np.array(GSCCresponses[dat]) == key)
+            vals = np.array(GSCCtumor[dat])[:, locs[0]]
+            #groupvals[key + " in " + dat] = vals
+            groupvals[key] = vals
+    keylist2 = groupvals.keys()
+    
+
+    
+    for key in keylist2:
+        for key2 in keylist2:
+            _, pVals[key + " < " + key2] = stat.mannwhitneyu(groupvals[key], groupvals[key2], alternative = "less", axis = 1)
+            signif[key + " < " + key2] = (pVals[key + " < " + key2]  < 0.05/len(keylist2)**2)
+        
+    # Plotting the significant values
+
+    fig, ax = plt.subplots()
+    toTest = list(signif.keys())
+    
+    for key in keylist2:
+        try:
+            toTest.remove(key + " < " + key)
+        except:
+            pass
+    
+    
+    for key in keylist:
+        try:
+            toTest.remove(key + " < " + key)
+        except:
+            pass
+    for i, key in enumerate(toTest):
+        ax.scatter(lamlist, (i + 2) * signif[key], color = "b", marker = "o")
+        ax.scatter(lamlist, (i + 2) * ~signif[key], color = "r", marker = "o")
+    ticks = np.arange(2, len(toTest) + 2)
+    labels = toTest
+    ax.set_yticks(ticks)
+    ax.set_yticklabels(labels)
+    ax.set_ylim(1, len(toTest) + 2)
+    ax.set_xlabel("Average degree inputted (λ)")
+    ax.set_ylabel("Comparison (in {})".format(dat))
+    ax.set_title("Signif. of one sided Mann-Whitney U")
+    if save:
+        plt.tight_layout()
+        plt.savefig("MannWhitneyU_comparison_GSCC_{}.png".format(dat))
+        plt.savefig("MannWhitneyU_comparison_GSCC_{}.svg".format(dat))
+        plt.show()
+    else:
+        plt.show()
+        
+    
+    colors = ['#9467bd','#d62728', '#ff7f0e', '#2ca02c', '#8c564b']
+    linestyles = ['solid', 'dotted', 'dashed', 'dashdot', 'solid']
+    for i, key in enumerate(keylist2):
+            try:
+                vals = groupvals[key]
+                av = np.median(vals, axis = 1)
+                q1 = np.percentile(vals, 25, axis = 1)
+                q3 = np.percentile(vals, 75, axis = 1)
+                plt.plot(lamlist, av, color = colors[i], linestyle = linestyles[i], label = key)
+                plt.fill_between(lamlist, q3, q1, color = colors[i], alpha = 0.2)
+            except:
+                pass
+    plt.legend()
+    plt.ylim([1, 1.5])
+    plt.xlabel("Average degree inputted (λ)")
+    if norm:
+        plt.ylabel("{} contribution to GSCC (normalized)".format(celltype))
+    else:
+        plt.ylabel("{} contribution to GSCC".format(celltype))
+    plt.title("Evolution of {} cells in GSCC for different groups".format(celltype))
+    if save:
+        plt.tight_layout()
+        plt.savefig("GSCC_evol_{}_{}_groups_norm.png".format(dat, feat))
+        plt.savefig("GSCC_evol_{}_{}_groups_norm.svg".format(dat, feat))
+        plt.show()
+    else:
+        plt.show()
+    return pVals, signif
+
+
+
+
+
+
+
 if __name__ == "__main__":
+    #--------------------------------------------
+    #   Test GSCC function Monte-Carlo
+    #--------------------------------------------
+    pvals, signif = contributionAnalysisGSCC(1, 15, ["STAD", "SKCM"], "GSCC_Tumor", "MFP", True, False)
+    
+    
+    
+    
+    #--------------------------------------------------
+    # Test heatmap, volcano and correlation kernel
+    #--------------------------------------------------
+    cancer_types = ["STAD", "SKCM"] #Names of the cancer types for pan cancer analysis
+    investigation_types = ["STAD"] #Names of cancer types to investigate
+    datatype = ["W"] #Type of communication data
+    
+    
+    Group_Names_pan = ["IE", "IE/F", "F", "D"] #Names of groups in pan cancer analysis
+    Group_Names_inv = ["IE", "IE/F", "F", "D"] #Names of groups in cancer specific analysis
+    feature_pan = "MFP" #Metadata feature for pan cancer group
+    feature_inv = "MFP" #Metadata feature for investigation group
+    Pan_cancer_name = "Rest TCGA" #How to name the reference set (cancer_types)
+    
+    remove_celltypes = [] #List of celltypes to remove.
+    Remove_low_var = False #Remove low variance features
+    Cross_feature_analysis = False #Instead of creating volcanoplots of comparing features between cancer types, you create heatmaps that compare the same features across cancer types
+    thresh = 20 #Only take top thresh pathways in analysis
+    data, communication_types, Nofeatures_global = readAllDataExact(cancer_types, investigation_types, datatype, remove_celltypes = [], weight = "min", bundle = True)
+    data = addMetadata(data, cancer_types, investigation_types, feature_pan, feature_inv)
+    computeCorrelation(data, thresh)
+    Groups = groupPatients(data, cancer_types, investigation_types, Group_Names_pan, Group_Names_inv, feature_pan, feature_inv)
+    pan_cancer_data, pan_cancer_labels = createPanCancerData(Groups, cancer_types, Group_Names_pan, Nofeatures_global)
+    pvals, fold_change, signif, pan_cancer_p, pan_cancer_fold, pan_cancer_signif = wilcoxon(data, Groups, investigation_types, Group_Names_inv, pan_cancer_data, pan_cancer_labels, Group_Names_pan, communication_types, Nofeatures_global, Cross_feature_analysis = False, alpha = 0.05)
+    volcanoPan(pan_cancer_p, pan_cancer_fold, pan_cancer_signif, Group_Names_pan, communication_types, datatype, feature_pan, Pan_cancer_name,  Nofeatures_global)
+    volcanoInd(pvals, fold_change, signif, Group_Names_inv, communication_types, datatype, feature_inv, investigation_types,  Nofeatures_global)
+    big_diff_path, warning = findLargeFold(pan_cancer_p, pvals, pan_cancer_fold, fold_change, pan_cancer_signif, signif, Group_Names_pan, investigation_types, Nofeatures_global, thresh = 20)
+    heatmap(big_diff_path, warning, pan_cancer_p, pvals, pan_cancer_fold, fold_change, pan_cancer_signif, signif, Group_Names_pan, Pan_cancer_name, investigation_types, communication_types, feature_inv, datatype, Nofeatures_global, thresh = 20, save = False)
+    
+
+    
+    
+    #--------------------------------------------------
+    # Test heatmap, volcano and correlation monte-carlo
+    #--------------------------------------------------
     cancer_types = ["SKCM"] #Names of the cancer types for pan cancer analysis
     investigation_types = ["SKCM"] #Names of cancer types to investigate
     datatype = ["W"] #Type of communication data
@@ -1366,14 +1769,15 @@ if __name__ == "__main__":
     Remove_low_var = False #Remove low variance features
     Cross_feature_analysis = False #Instead of creating volcanoplots of comparing features between cancer types, you create heatmaps that compare the same features across cancer types
     thresh = 20 #Only take top thresh pathways in analysis
-    data, communication_types, Nofeatures_global = readAllData(cancer_types, investigation_types, datatype, remove_celltypes, noCells = 1000, average = 5, weight = "min", bundle = True)
-    #data = removeOutliers(data)
+    data, communication_types, Nofeatures_global = readAllData(cancer_types, investigation_types, datatype, remove_celltypes, noCells = 500, average = 20, weight = "min", bundle = True)
     data = addMetadata(data, cancer_types, investigation_types, feature_pan, feature_inv)
-    #computeCorrelation(data, thresh)
-    #Groups = groupPatients(data, cancer_types, investigation_types, Group_Names_pan, Group_Names_inv, feature_pan, feature_inv)
-    #pan_cancer_data, pan_cancer_labels = createPanCancerData(Groups, cancer_types, Group_Names_pan, Nofeatures_global)
-    #pvals, fold_change, signif, pan_cancer_p, pan_cancer_fold, pan_cancer_signif = wilcoxon(data, Groups, investigation_types, Group_Names_inv, pan_cancer_data, pan_cancer_labels, Group_Names_pan, communication_types, Nofeatures_global, Cross_feature_analysis = False, alpha = 0.05)
-    #volcanoPan(pan_cancer_p, pan_cancer_fold, pan_cancer_signif, Group_Names_pan, communication_types, datatype, feature_pan, Pan_cancer_name,  Nofeatures_global)
-    #volcanoInd(pvals, fold_change, signif, Group_Names_inv, communication_types, datatype, feature_inv, investigation_types,  Nofeatures_global)
-    #big_diff_path, warning = findLargeFold(pan_cancer_p, pvals, pan_cancer_fold, fold_change, pan_cancer_signif, signif, Group_Names_pan, investigation_types, Nofeatures_global, thresh = 20)
-    #heatmap(big_diff_path, warning, pan_cancer_p, pvals, pan_cancer_fold, fold_change, pan_cancer_signif, signif, Group_Names_pan, Pan_cancer_name, investigation_types, communication_types, feature_inv, datatype, Nofeatures_global, thresh = 20, save = False)
+    computeCorrelation(data, thresh)
+    Groups = groupPatients(data, cancer_types, investigation_types, Group_Names_pan, Group_Names_inv, feature_pan, feature_inv)
+    pan_cancer_data, pan_cancer_labels = createPanCancerData(Groups, cancer_types, Group_Names_pan, Nofeatures_global)
+    pvals, fold_change, signif, pan_cancer_p, pan_cancer_fold, pan_cancer_signif = wilcoxon(data, Groups, investigation_types, Group_Names_inv, pan_cancer_data, pan_cancer_labels, Group_Names_pan, communication_types, Nofeatures_global, Cross_feature_analysis = False, alpha = 0.05)
+    volcanoPan(pan_cancer_p, pan_cancer_fold, pan_cancer_signif, Group_Names_pan, communication_types, datatype, feature_pan, Pan_cancer_name,  Nofeatures_global)
+    volcanoInd(pvals, fold_change, signif, Group_Names_inv, communication_types, datatype, feature_inv, investigation_types,  Nofeatures_global)
+    big_diff_path, warning = findLargeFold(pan_cancer_p, pvals, pan_cancer_fold, fold_change, pan_cancer_signif, signif, Group_Names_pan, investigation_types, Nofeatures_global, thresh = 20)
+   
+    
+    
